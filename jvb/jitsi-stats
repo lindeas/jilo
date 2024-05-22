@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+#grep -e 'Videobridge.createConference\|Conference.expire' jvb.log > 11
+
+LOGFILE="/var/log/jitsi/jvb.log"
+STATEFILE="/srv/jitsi/bin/jitsi-stats.state"
+DB="/srv/jitsi/data/jitsi-stats.db"
+
+if [[ -f "$STATEFILE" ]]; then
+    last_processed=$(cat "$STATEFILE")
+else
+    last_processed="1970-01-01 00:00:00.000"
+fi
+
+declare -A start_times
+declare -A conference_names
+
+jvb_log_parse() {
+
+    local new_last_processed="$last_processed"
+
+    while IFS= read -r line; do
+        if [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\ Videobridge\.createConference#[0-9]+:\ create_conf,\ id=([a-zA-z0-9-]+) ]]; then
+            timestamp="${BASH_REMATCH[1]}"
+            conferenceId="${BASH_REMATCH[2]}"
+            if [[ "$timestamp" > "$last_processed" ]]; then
+                start_times["$conferenceId"]="$timestamp"
+                if [[ "$timestamp" > "$new_last_processed" ]]; then
+                    new_last_processed="$timestamp"
+                fi
+            fi
+
+        elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=([a-zA-Z0-9-]+)\ .*conf_name=([^ ]+)@.*\]\ Conference\.expire ]]; then
+            timestamp="${BASH_REMATCH[1]}"
+            conferenceId="${BASH_REMATCH[2]}"
+            conferenceName="${BASH_REMATCH[3]}"
+            if [[ "$timestamp" > "$last_processed" ]]; then
+                start_time="${start_times["$conferenceId"]}"
+                conference_names["$conferenceId"]="$conferenceName"
+                    if [[ -n "$start_time" ]]; then
+                        echo "$conferenceName $eventId $start_time $timestamp"
+                        sqlite3 "$DB" <<EOF
+                            INSERT INTO conferences (conference_name, conference_id, start, end) VALUES ('$conferenceName', '$conferenceId', '$start_time', '$timestamp');
+EOF
+                        unset start_times["$conferenceId"]
+                        unset conference_names["$conferenceId"]
+                    fi
+                    if [[ "$fimestamp" > "$new_last_processed" ]]; then
+                        new_last_processed="$timestamp"
+                    fi
+            fi
+        fi
+
+    done < "$LOGFILE"
+
+    echo "$new_last_processed" > "$STATEFILE"
+
+}
+
+jvb_log_parse
