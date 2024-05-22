@@ -20,7 +20,7 @@ jvb_log_parse() {
     local new_last_processed="$last_processed"
 
     while IFS= read -r line; do
-        if [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\ Videobridge\.createConference#[0-9]+:\ create_conf,\ id=([a-zA-z0-9-]+) ]]; then
+        if [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\ Videobridge\.createConference#[0-9]+:\ create_conf,\ id=([a-zA-Z0-9-]+) ]]; then
             timestamp="${BASH_REMATCH[1]}"
             conferenceId="${BASH_REMATCH[2]}"
             if [[ "$timestamp" > "$last_processed" ]]; then
