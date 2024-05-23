@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 
-#grep -e 'Videobridge.createConference\|Conference.expire' jvb.log > 11
-
 ### Variables
 
 # log files
-LOGFILE="../../jvb.log"
-ROTATED_LOGFILE="../../jvb.log.1"
+LOGFILE="./jvb.log"
+ROTATED_LOGFILE="./jvb.log.1"
 # SQLite database file
-DB="../../jitsi-stats.db"
+DB="./jitsi-stats.db"
 
 ###
 
@@ -16,6 +14,33 @@ DB="../../jitsi-stats.db"
 db_get_state='SELECT filename, filetime, position, inode FROM state WHERE id = 1;'
 db_set_state_template="UPDATE state SET time=datetime('now'), filename='%s', filetime='%s', position='%s', inode='%s' WHERE id = 1;"
 db_insert_template="INSERT INTO conferences (conference_name, conference_id, start, end) VALUES ('%s', '%s', '%s', '%s');"
+db_create="
+DROP TABLE conferences;
+CREATE TABLE conferences (
+    id INTEGER PRIMARY_KEY,
+    conference_name TEXT,
+    conference_id TEXT,
+    start TEXT,
+    end TEXT
+);
+DROP TABLE state;
+CREATE TABLE state (
+    id INTEGER PRIMARY_KEY,
+    time TEXT,
+    filename TEXT,
+    filetime INTEGER,
+    position INTEGER CHECK(typeof(position)='integer'),
+    inode INTEGER
+);
+INSERT OR REPLACE INTO state (id, time, filename, filetime, position, inode) VALUES (1, '1970-01-01 00:00:00.000', '', 0, 0, 0);"
+db_flush="
+DELETE FROM conferences;
+DELETE FROM state;
+INSERT OR REPLACE INTO state (id, time, filename, filetime, position, inode) VALUES (1, '1970-01-01 00:00:00.000', '', 0, 0, 0);"
+
+###
+
+# DB functions
 
 # Get the last processed state from the database
 get_state() {
@@ -32,22 +57,17 @@ set_state() {
     sqlite3 "$DB" "$db_set_state"
 }
 
-# Retrieve last log file and position inside it
-IFS='|' read -r last_file last_filetime last_pos last_inode <<< $(get_state)
+###
 
-# Initialize logfile vars
-last_pos=${last_pos:-0}
-current_inode=$(stat -c '%i' "$LOGFILE")
-current_filetime=$(stat -c '%Y' "$LOGFILE")
-
-# Local assoc array for conference events tracking
-declare -A start_times
-
+# Main parsing funstion
 jvb_log_parse() {
 
     local file=$1
     local start_pos=$2
     local new_last_pos="$start_pos"
+
+    # Local assoc array for conference events tracking
+    declare -A start_times
 
     # We open the file and start reading from $start_pos bytes
     exec 3<"$file"
@@ -82,24 +102,97 @@ jvb_log_parse() {
     echo "$new_last_pos"
 }
 
-# parse the rotated log file
-if [[ "$last_file" == "$LOGFILE" && -f "$ROTATED_LOGFILE" ]]; then
-    echo "Processing the rotated log file: $ROTATED_LOGFILE"
-    last_pos=$(jvb_log_parse "$ROTATED_LOGFILE" 0)
-    last_file="$ROTATED_LOGFILE"
-    last_inode=$(stat -c '%i' "$ROTATED_LOGFILE")
-    last_filetime=$(stat -c '%Y' "$ROTATED_LOGFILE")
-    set_state "$last_file" "$last_filetime" "$last_pos" "$last_inode"
-fi
+###
 
-# parse the current log file
-echo "Processing the current log file: $LOGFILE"
-new_last_pos=$(jvb_log_parse "$LOGFILE" "$last_pos")
+# commandline options
+case "$1" in
 
-# DEBUG
-echo "New last position after parsing: $new_last_pos"
+    --create-db|-d)
+        sqlite3 "$DB" "$db_create"
+        echo "Database created."
+        exit 0
+        ;;
 
-# update the state in db
-set_state "$LOGFILE" "$current_filetime" "$new_last_pos" "$current_inode"
+    --flush|-f)
+        sqlite3 "$DB" "$db_flush"
+        echo "Tables flushed."
+        exit 0
+        ;;
 
-echo "Data import finished."
+    --check|-c)
+
+        # Retrieve last log file and position inside it
+        IFS='|' read -r last_file last_filetime last_pos last_inode <<< $(get_state)
+
+        # Initialize logfile vars
+        current_inode=$(stat -c '%i' "$LOGFILE")
+        current_filetime=$(stat -c '%Y' "$LOGFILE")
+
+        if [[ "$last_file" == '' || "$last_inode" == 0 ]]; then
+            echo "It looks like a fresh install. You can now run log parsing."
+            exit 0
+        fi
+
+        # report
+        echo "Last file: $last_file"
+        echo "Last filetime: $last_filetime"
+        echo "Last inode: $last_inode"
+        echo "Last processed position: $last_pos"
+        echo "Current filetime: $current_filetime"
+        echo "Current inode: $current_inode"
+
+        if [[ "$last_file" != "$LOGFILE" || "$last_inode" != "$current_inode" ]]; then
+            echo "Log file has rotated."
+        else
+            echo "Log file has not rotated."
+        fi
+
+        if [[ "$current_filetime" -ne "$last_filetime" ]]; then
+            echo "New lines have been added to the log."
+        else
+            echo "No new lines in the log."
+        fi
+        exit 0
+        ;;
+
+    --parse|-p)
+
+        # Retrieve last log file and position inside it
+        IFS='|' read -r last_file last_filetime last_pos last_inode <<< $(get_state)
+
+        # Initialize logfile vars
+        last_pos=${last_pos:-0}
+        current_inode=$(stat -c '%i' "$LOGFILE")
+        current_filetime=$(stat -c '%Y' "$LOGFILE")
+
+        # Detect if the logfile was rotated (same inode, smaller size - copytruncate in logrotate)
+        # parse the rotated log file
+        current_size=$(stat -c '%s' "$LOGFILE")
+        if [[ "$last_inode" == "$current_inode" && "$current_size" -lt "$last_pos" && -f "$ROTATED_LOGFILE" ]]; then
+            echo "Logfile was rotated. Processing the rotated log file: $ROTATED_LOGFILE"
+            last_pos=$(jvb_log_parse "$ROTATED_LOGFILE" 0)
+            last_file="$ROTATED_LOGFILE"
+            last_inode=$(stat -c '%i' "$ROTATED_LOGFILE")
+            last_filetime=$(stat -c '%Y' "$ROTATED_LOGFILE")
+            set_state "$last_file" "$last_filetime" "$last_pos" "$last_inode"
+        fi
+
+        # parse the current log file
+        echo "Processing the current log file: $LOGFILE"
+        new_last_pos=$(jvb_log_parse "$LOGFILE" "$last_pos")
+
+        # DEBUG
+        echo "New last position after parsing: $new_last_pos"
+
+        # update the state in db
+        set_state "$LOGFILE" "$current_filetime" "$new_last_pos" "$current_inode"
+
+        echo "Data import finished."
+        exit 0
+        ;;
+
+    *)
+        echo -e "Usage:\n\t$0 [OPTION]\nOptions:\n\t--create-db|-d - create the database\n\t--flush|-f - flush the tables\n\t--check|-c - check for new data\n\t--parse|-p - parse the logs"
+        exit 1
+        ;;
+esac
