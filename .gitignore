@@ -1,2 +1,4 @@
 jvb*.log
+jicofo*.log
+jicofo.*log.*gz
 jitsi-stats.db
