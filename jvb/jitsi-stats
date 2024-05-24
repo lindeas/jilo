@@ -43,6 +43,26 @@ help="Usage:\n\t$0 [OPTION]\nOptions:\n\t--create-db|-d - create the database\n\
 
 ###
 
+# First we check for requirements
+check_requirements() {
+    # required programs, anything non-bash - edit as needed
+    # deb packages - sqlite3, coreutils(stat,dd)
+    local required_programs=("sqlite3" "stat" "dd")
+    local requirements_missing=''
+    for program in "${required_programs[@]}"; do
+        if ! command -v "$program" &> /dev/null; then
+            requirements_missing+="$program, "
+        fi
+    done
+    if [[ "$requirements_missing" != '' ]]; then
+        requirements_missing=${requirements_missing::-2}
+        echo "Error: $requirements_missing - not found. Please install to proceed."
+    fi
+}
+check_requirements
+
+###
+
 # DB functions
 
 # Get the last processed state from the database
