@@ -85,7 +85,7 @@ set_state() {
 ###
 
 # Main parsing funstion
-jvb_log_parse() {
+jicofo_log_parse() {
 
     local file=$1
     local start_pos=$2
