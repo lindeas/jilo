@@ -11,8 +11,8 @@ DB="./jitsi-stats.db"
 ###
 
 # SQLite queries
-db_get_state='SELECT filename, filetime, filesize, position, inode FROM state WHERE id = 1;'
-db_set_state_template="UPDATE state SET time=datetime('now'), filename='%s', filetime='%s', filesize='%s', position='%s', inode='%s' WHERE id = 1;"
+db_get_state="SELECT filename, filetime, filesize, position, inode FROM state WHERE jitsi_component = 'JVB';"
+db_set_state_template="UPDATE state SET time=datetime('now'), filename='%s', filetime='%s', filesize='%s', position='%s', inode='%s' WHERE jitsi_component = 'JVB';"
 db_insert_template="INSERT INTO conferences (conference_name, conference_id, start, end) VALUES ('%s', '%s', '%s', '%s');"
 db_create="
 DROP TABLE IF EXISTS conferences;
@@ -26,6 +26,7 @@ CREATE TABLE conferences (
 DROP TABLE IF EXISTS state;
 CREATE TABLE state (
     id INTEGER PRIMARY_KEY,
+    jitsi_component TEXT,
     time TEXT,
     filename TEXT,
     filetime INTEGER,
@@ -33,11 +34,11 @@ CREATE TABLE state (
     position INTEGER CHECK(typeof(position)='integer'),
     inode INTEGER
 );
-INSERT OR REPLACE INTO state (id, time, filename, filetime, filesize, position, inode) VALUES (1, '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
+INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (1, 'JVB', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
 db_flush="
 DELETE FROM conferences;
 DELETE FROM state;
-INSERT OR REPLACE INTO state (id, time, filename, filetime, filesize, position, inode) VALUES (1, '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
+INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (1, 'JVB', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
 
 help="Usage:\n\t$0 [OPTION]\nOptions:\n\t--create-db|-d - create the database\n\t--flush|-f - flush the tables\n\t--check|-c - check for new data\n\t--parse|-p [-v] - parse the logs [verbosely]"
 
