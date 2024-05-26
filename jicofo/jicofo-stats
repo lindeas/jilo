@@ -116,14 +116,12 @@ jicofo_log_parse() {
         fi
 
         # locate conference starting event
-#        if [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\ Videobridge\.createConference#[0-9]+:\ create_conf,\ id=([a-zA-Z0-9]+) ]]; then
         if [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=([^ ]+)@.*\]\ JitsiMeetConferenceImpl\.joinTheRoom ]]; then
             timestamp="${BASH_REMATCH[1]}"
             conferenceName="${BASH_REMATCH[2]}"
             start_times["$conferenceName"]="$timestamp"
 
         # locate the corresponding conference ending event
-#        elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=([a-zA-Z0-9]+)\ .*conf_name=([^ ]+)@.*\]\ Conference\.expire ]]; then
         elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+)\]\ JitsiMeetConferenceImpl\.stop ]]; then
             end_time="${BASH_REMATCH[1]}"
             conferenceName="${BASH_REMATCH[2]}"
