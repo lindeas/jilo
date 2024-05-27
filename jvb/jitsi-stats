@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
 
-### Variables
+### Default configuration
 
-# log files
-LOGFILE="./jvb.log"
-ROTATED_LOGFILE="./jvb.log.1"
-# SQLite database file
-DB="./jitsi-stats.db"
+# default log files
+DEFAULT_LOGFILE="./jvb.log"
+DEFAULT_ROTATED_LOGFILE="./jvb.log.1"
+# Default SQLite database file
+DEFAULT_DB="./jitsi-stats.db"
+
+# Configuration file
+CONFIG_FILE="./jilo.conf"
+
+# Load configurations from the config file if it exists
+if [[ -f "$CONFIG_FILE" ]]; then
+    source "$CONFIG_FILE"
+fi
+
+# use default values if not overriden by config file
+LOGFILE=${LOGFILE:-$DEFAULT_LOGFILE}
+ROTATED_LOGFILE=${ROTATED_LOGFILE:-$DEFAULT_ROTATED_LOGFILE}
+DB=${DB:-$DEFAULT_DB}
 
 ###
 
