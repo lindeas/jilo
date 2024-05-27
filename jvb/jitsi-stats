@@ -6,7 +6,7 @@
 DEFAULT_LOGFILE="./jvb.log"
 DEFAULT_ROTATED_LOGFILE="./jvb.log.1"
 # Default SQLite database file
-DEFAULT_DB="./jitsi-stats.db"
+DEFAULT_DB="./jilo.db"
 
 # Configuration file
 CONFIG_FILE="./jilo.conf"
@@ -27,16 +27,16 @@ DB=${DB:-$DEFAULT_DB}
 db_get_state="SELECT filename, filetime, filesize, position, inode FROM state WHERE jitsi_component = 'JVB';"
 db_set_state_template="UPDATE state SET time=datetime('now'), filename='%s', filetime='%s', filesize='%s', position='%s', inode='%s' WHERE jitsi_component = 'JVB';"
 db_insert_template="INSERT INTO conferences (conference_name, conference_id, start, end) VALUES ('%s', '%s', '%s', '%s');"
-db_create="
+db_drop="
 DROP TABLE IF EXISTS conferences;
-CREATE TABLE conferences (
+DROP TABLE IF EXISTS state;"
+db_create="CREATE TABLE conferences (
     id INTEGER PRIMARY_KEY,
     conference_name TEXT,
     conference_id TEXT,
     start TEXT,
     end TEXT
 );
-DROP TABLE IF EXISTS state;
 CREATE TABLE state (
     id INTEGER PRIMARY_KEY,
     jitsi_component TEXT,
@@ -46,12 +46,11 @@ CREATE TABLE state (
     filesize INTEGER,
     position INTEGER CHECK(typeof(position)='integer'),
     inode INTEGER
-);
-INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (1, 'JVB', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
+);"
+db_init="INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (1, 'JVB', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
 db_flush="
 DELETE FROM conferences;
-DELETE FROM state;
-INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (1, 'JVB', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
+DELETE FROM state;"
 
 help="Usage:\n\t$0 [OPTION]\nOptions:\n\t--create-db|-d - create the database\n\t--flush|-f - flush the tables\n\t--check|-c - check for new data\n\t--parse|-p [-v] - parse the logs [verbosely]"
 
@@ -187,13 +186,16 @@ shift $((OPTIND -1))
 case "$cmd" in
 
     --create-db)
+        sqlite3 "$DB" "$db_drop"
         sqlite3 "$DB" "$db_create"
+        sqlite3 "$DB" "$db_init"
         echo "Database created."
         exit 0
         ;;
 
     --flush)
         sqlite3 "$DB" "$db_flush"
+        sqlite3 "$DB" "$db_init"
         echo "Tables flushed."
         exit 0
         ;;
@@ -201,14 +203,15 @@ case "$cmd" in
     --check)
 
         # First check if database exists
-        if [[ ! -f $"DB" ]]; then
+        if [[ ! -f "$DB" ]]; then
             echo "Database not found. If it's a fresh install, please install the database first."
             exit 1
         fi
 
-        # Check the state table
-        if ! sqlite3 "$DB" ".schema state" &>/dev/null; then
-            echo "The database doesn't contain the required table \"state\". Please check it, and if needed, reinstall it."
+        # compare the DB schema to the expected one
+        current_db_schema=$(sqlite3 "$DB" .schema)
+        if [[ "$current_db_schema" != "$db_create" ]]; then
+            echo "The database doesn't match the expected schema. Please check it, and if needed, reinstall it."
             exit 1
         fi
 
