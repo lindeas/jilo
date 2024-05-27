@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+###
+# JItsi Log Observer
+#
+# Bash script for Jitsi Meet components (Videobridge, Jicofo, etc.) logs parsing
+###
+
+
 ### Default configuration
 
 # default log files and processes
