@@ -200,6 +200,18 @@ case "$cmd" in
 
     --check)
 
+        # First check if database exists
+        if [[ ! -f $"DB" ]]; then
+            echo "Database not found. If it's a fresh install, please install the database first."
+            exit 1
+        fi
+
+        # Check the state table
+        if ! sqlite3 "$DB" ".schema state" &>/dev/null; then
+            echo "The database doesn't contain the required table \"state\". Please check it, and if needed, reinstall it."
+            exit 1
+        fi
+
         # Retrieve last log file and position inside it
         IFS='|' read -r last_file last_filetime last_size last_pos last_inode <<< $(get_state)
 
