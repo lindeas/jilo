@@ -112,8 +112,8 @@ set_state() {
 
 ###
 
-# Jitsi Videobridge parsing funstion
-jvb_log_parse() {
+# Main parsing funstion
+jitsi_log_parse() {
 
     local file=$1
     local start_pos=$2
@@ -191,65 +191,6 @@ jvb_log_parse() {
 
         esac
 
-    # We don't use pipe, but process substitution '<(dd...)' to avoid running while loop in subshell and lose the 'new_last_pos' value
-    done < <(dd bs=1 skip="$start_pos" <&3 2>/dev/null)
-
-    # Close the file descriptor
-    exec 3<&-
-}
-
-###
-
-# Jicofo parsing funstion
-jicofo_log_parse() {
-
-    local file=$1
-    local start_pos=$2
-    new_last_pos="$start_pos"
-
-    # Local assoc array for conference events tracking
-    declare -A start_times
-
-    # Get size and position for progress tracking
-    local total_size=$(stat -c '%s' "$file")
-    local processed_lines=0
-    local procesed_bytes=0
-
-    # We open the file and start reading from $start_pos bytes
-    exec 3<"$file"
-    while IFS= read -r line; do
-        # save new position (previous plus bytes in current line plus 1 for the new line)
-        new_last_pos=$((new_last_pos + ${#line} + 1))
-
-        # increment progress stats
-        processed_lines=$((processed_lines + 1))
-        processed_bytes=$((processed_bytes + ${#line} + 1))
-
-        # show progress if in verbose mode
-        if [[ "$verbose" == true ]]; then
-            local percent=$((100 * processed_bytes / total_size))
-            echo -ne "Processing: $percent% ($processed_lines lines, $processed_bytes bytes) \r"
-        fi
-
-        # locate conference starting event
-        if [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=([^ ]+)@.*\]\ JitsiMeetConferenceImpl\.joinTheRoom ]]; then
-            timestamp="${BASH_REMATCH[1]}"
-            conferenceName="${BASH_REMATCH[2]}"
-            start_times["$conferenceName"]="$timestamp"
-
-        # locate the corresponding conference ending event
-        elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+)\]\ JitsiMeetConferenceImpl\.stop ]]; then
-            end_time="${BASH_REMATCH[1]}"
-            conferenceName="${BASH_REMATCH[2]}"
-            conferenceId="${BASH_REMATCH[3]}"
-            start_time="${start_times["$conferenceName"]}"
-
-            if [[ -n "$start_time" ]]; then
-                db_insert=$(printf "$db_insert_template" "$conferenceName" "$conferenceId" "$start_time" "$end_time")
-                sqlite3 "$DB" "$db_insert"
-                unset start_times["$conferenceName"]
-            fi
-        fi
     # We don't use pipe, but process substitution '<(dd...)' to avoid running while loop in subshell and lose the 'new_last_pos' value
     done < <(dd bs=1 skip="$start_pos" <&3 2>/dev/null)
 
@@ -429,7 +370,7 @@ case "$cmd" in
                 # parse the rotated log file
                 if [[ "$last_inode" == "$current_inode" && "$current_size" -lt "$last_pos" && -f "$ROTATED_LOGFILE" ]]; then
                     echo "Logfile was rotated. Processing the rotated log file: $ROTATED_LOGFILE"
-                    jvb_log_parse "$ROTATED_LOGFILE" 0 "$verbose"
+                    jitsi_log_parse "$ROTATED_LOGFILE" 0 "$verbose"
                     last_file="$ROTATED_LOGFILE"
                     last_inode=$(stat -c '%i' "$ROTATED_LOGFILE")
                     last_filetime=$(stat -c '%Y' "$ROTATED_LOGFILE")
@@ -438,7 +379,7 @@ case "$cmd" in
 
                 # parse the current log file
                 echo "Processing the current log file: $LOGFILE"
-                jvb_log_parse "$LOGFILE" "$last_pos" "$verbose"
+                jitsi_log_parse "$LOGFILE" "$last_pos" "$verbose"
 
                 if [[ "$verbose" == true ]]; then
                     echo -e "\nNew last position after parsing: $new_last_pos"
