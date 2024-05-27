@@ -2,9 +2,11 @@
 
 ### Default configuration
 
-# default log files
-DEFAULT_LOGFILE="./jvb.log"
-DEFAULT_ROTATED_LOGFILE="./jvb.log.1"
+# default log files and processes
+DEFAULT_JVB_LOGFILE="/var/log/jitsi/jvb.log"
+DEFAULT_JVB_PROCESS="videobridge"
+DEFAULT_JICOFO_LOGFILE="/var/log/jitsi/jicofo.log"
+DEFAULT_JICOFO_PROCESS="jicofo"
 # Default SQLite database file
 DEFAULT_DB="./jilo.db"
 
@@ -17,15 +19,17 @@ if [[ -f "$CONFIG_FILE" ]]; then
 fi
 
 # use default values if not overriden by config file
-LOGFILE=${LOGFILE:-$DEFAULT_LOGFILE}
-ROTATED_LOGFILE=${ROTATED_LOGFILE:-$DEFAULT_ROTATED_LOGFILE}
+JVB_LOGFILE=${JVB_LOGFILE:-$DEFAULT_JVB_LOGFILE}
+JVB_PROCESS=${JVB_PROCESS:-$DEFAULT_JVB_PROCESS}
+JICOFO_LOGFILE=${JICOFO_LOGFILE:-$DEFAULT_JICOFO_LOGFILE}
+JICOFO_PROCESS=${JICOFO_PROCESS:-$DEFAULT_JICOFO_PROCESS}
 DB=${DB:-$DEFAULT_DB}
 
 ###
 
 # SQLite queries
-db_get_state="SELECT filename, filetime, filesize, position, inode FROM state WHERE jitsi_component = 'JVB';"
-db_set_state_template="UPDATE state SET time=datetime('now'), filename='%s', filetime='%s', filesize='%s', position='%s', inode='%s' WHERE jitsi_component = 'JVB';"
+db_get_state_template="SELECT filename, filetime, filesize, position, inode FROM state WHERE jitsi_component = '%s';"
+db_set_state_template="UPDATE state SET time=datetime('now'), filename='%s', filetime='%s', filesize='%s', position='%s', inode='%s' WHERE jitsi_component = '%s';"
 db_insert_template="INSERT INTO conferences (conference_name, conference_id, start, end) VALUES ('%s', '%s', '%s', '%s');"
 db_drop="
 DROP TABLE IF EXISTS conferences;
@@ -47,7 +51,9 @@ CREATE TABLE state (
     position INTEGER CHECK(typeof(position)='integer'),
     inode INTEGER
 );"
-db_init="INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (1, 'JVB', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
+db_init="
+INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (1, 'JVB', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);
+INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (1, 'JICOFO', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
 db_flush="
 DELETE FROM conferences;
 DELETE FROM state;"
@@ -80,6 +86,7 @@ check_requirements
 
 # Get the last processed state from the database
 get_state() {
+    db_get_state=$(printf "$db_get_state_template" "$1")
     sqlite3 "$DB" "$db_get_state"
 }
 
@@ -90,7 +97,8 @@ set_state() {
     local filesize=$3
     local position=${4:-0}
     local inode=$5
-    db_set_state=$(printf "$db_set_state_template" "$filename" "$filetime" "$filesize" "$position" "$inode")
+    local jitsi_component=$6
+    db_set_state=$(printf "$db_set_state_template" "$filename" "$filetime" "$filesize" "$position" "$inode" "$jitsi_component")
     sqlite3 "$DB" "$db_set_state"
 }
 
@@ -155,6 +163,12 @@ jvb_log_parse() {
 
 ###
 
+### FIXME - this is not currently used
+# check if and which process is running
+is_process_running() {
+    pgrep -f "$1" >/dev/null 2>&1
+}
+
 # commandline options
 
 while getopts ":dfcpv" opt; do
@@ -215,75 +229,132 @@ case "$cmd" in
             exit 1
         fi
 
-        # Retrieve last log file and position inside it
-        IFS='|' read -r last_file last_filetime last_size last_pos last_inode <<< $(get_state)
+        # Check if log files exist
+        jvb_found=false
+        jicofo_found=false
 
-        # Initialize logfile vars
-        current_inode=$(stat -c '%i' "$LOGFILE")
-        current_filetime=$(stat -c '%Y' "$LOGFILE")
-        current_size=$(stat -c '%s' "$LOGFILE")
-
-        if [[ "$last_file" == '' || "$last_inode" == 0 ]]; then
-            echo "It looks like a fresh install. You can now run log parsing."
-            exit 0
+        if [[ -f "$JVB_LOGFILE" ]]; then
+            jvb_found=true
+            jitsi_components+=('JVB')
         fi
 
-        # report
-        echo "Last file: $last_file"
-        echo "Last filetime: $last_filetime"
-        echo "Last inode: $last_inode"
-        echo "Last size: $last_size"
-        echo "Last processed position: $last_pos"
-        echo "Current filetime: $current_filetime"
-        echo "Current inode: $current_inode"
-        echo "Current size: $current_size"
+        if [[ -f "$JICOFO_LOGFILE" ]]; then
+            jicofo_found=true
+            jitsi_components+=('JICOFO')
+        fi
 
-        if [[ "$last_inode" == "$current_inode" && "$current_size" -lt "$last_pos" && -f "$ROTATED_LOGFILE" ]]; then
-            echo "Log file has rotated."
+        # if no logs present, exit
+        if [[ "$jvb_found" == false && "$jicofo_found" == false ]]; then
+            echo "Neither \"$JVB_PROCESS\" ($JVB_LOGFILE) nor \"$JICOFO_PROCESS\" ($JICOFO_LOGFILE) log files are found."
+            exit 1
         else
-            echo "Log file has not rotated."
+
+            # otherwise loop through the found components
+            for jitsi_component in "${jitsi_components[@]}"; do
+
+                # Retrieve last log file and position inside it
+                IFS='|' read -r last_file last_filetime last_size last_pos last_inode <<< $(get_state)
+
+                # Initialize logfile vars
+                LOGFILE=$(eval "echo \$${jitsi_component}_LOGFILE")
+                ROTATED_LOGFILE="$LOGFILE.1"
+                current_inode=$(stat -c '%i' "$LOGFILE")
+                current_filetime=$(stat -c '%Y' "$LOGFILE")
+                current_size=$(stat -c '%s' "$LOGFILE")
+
+                if [[ "$last_file" == '' || "$last_inode" == 0 ]]; then
+                    echo "It looks like a fresh install. You can now run log parsing."
+                    exit 0
+                fi
+
+                # report
+                echo "Last file: $last_file"
+                echo "Last filetime: $last_filetime"
+                echo "Last inode: $last_inode"
+                echo "Last size: $last_size"
+                echo "Last processed position: $last_pos"
+                echo "Current filetime: $current_filetime"
+                echo "Current inode: $current_inode"
+                echo "Current size: $current_size"
+
+                if [[ "$last_inode" == "$current_inode" && "$current_size" -lt "$last_pos" && -f "$ROTATED_LOGFILE" ]]; then
+                    echo "Log file has rotated."
+                else
+                    echo "Log file has not rotated."
+                fi
+
+                if [[ "$current_filetime" -ne "$last_filetime" || "$current_size" -ne "$last_size" ]]; then
+                    echo "New lines have been added to the log."
+                else
+                    echo "No new lines in the log."
+                fi
+            done
         fi
 
-        if [[ "$current_filetime" -ne "$last_filetime" || "$current_size" -ne "$last_size" ]]; then
-            echo "New lines have been added to the log."
-        else
-            echo "No new lines in the log."
-        fi
         exit 0
         ;;
 
     --parse)
 
-        # Retrieve last log file and position inside it
-        IFS='|' read -r last_file last_filetime last_size last_pos last_inode <<< $(get_state)
+        # Check if log files exist
+        jvb_found=false
+        jicofo_found=false
 
-        # Initialize logfile vars
-        last_pos=${last_pos:-0}
-        current_inode=$(stat -c '%i' "$LOGFILE")
-        current_filetime=$(stat -c '%Y' "$LOGFILE")
-        current_size=$(stat -c '%s' "$LOGFILE")
-
-        # Detect if the logfile was rotated (same inode, smaller size - copytruncate in logrotate)
-        # parse the rotated log file
-        if [[ "$last_inode" == "$current_inode" && "$current_size" -lt "$last_pos" && -f "$ROTATED_LOGFILE" ]]; then
-            echo "Logfile was rotated. Processing the rotated log file: $ROTATED_LOGFILE"
-            jvb_log_parse "$ROTATED_LOGFILE" 0 "$verbose"
-            last_file="$ROTATED_LOGFILE"
-            last_inode=$(stat -c '%i' "$ROTATED_LOGFILE")
-            last_filetime=$(stat -c '%Y' "$ROTATED_LOGFILE")
-            set_state "$last_file" "$last_filetime" "$last_size" "$last_pos" "$last_inode"
+        if [[ -f "$JVB_LOGFILE" ]]; then
+            jvb_found=true
+            jitsi_components+=('JVB')
         fi
 
-        # parse the current log file
-        echo "Processing the current log file: $LOGFILE"
-        jvb_log_parse "$LOGFILE" "$last_pos" "$verbose"
-
-        if [[ "$verbose" == true ]]; then
-            echo -e "\nNew last position after parsing: $new_last_pos"
+        if [[ -f "$JICOFO_LOGFILE" ]]; then
+            jicofo_found=true
+            jitsi_components+=('JICOFO')
         fi
 
-        # update the state in db
-        set_state "$LOGFILE" "$current_filetime" "$current_size" "$new_last_pos" "$current_inode"
+        # if no logs present, exit
+        if [[ "$jvb_found" == false && "$jicofo_found" == false ]]; then
+            echo "Neither \"$JVB_PROCESS\" ($JVB_LOGFILE) nor \"$JICOFO_PROCESS\" ($JICOFO_LOGFILE) log files are found."
+            exit 1
+        else
+
+            # otherwise loop through the found components
+            for jitsi_component in "${jitsi_components[@]}"; do
+
+                # Retrieve last log file and position inside it
+                IFS='|' read -r last_file last_filetime last_size last_pos last_inode <<< $(get_state "$jitsi_component")
+
+                # Initialize logfile vars
+                LOGFILE=$(eval "echo \$${jitsi_component}_LOGFILE")
+                ROTATED_LOGFILE="$LOGFILE.1"
+                last_pos=${last_pos:-0}
+                current_inode=$(stat -c '%i' "$LOGFILE")
+                current_filetime=$(stat -c '%Y' "$LOGFILE")
+                current_size=$(stat -c '%s' "$LOGFILE")
+
+                # Detect if the logfile was rotated (same inode, smaller size - copytruncate in logrotate)
+                # parse the rotated log file
+                if [[ "$last_inode" == "$current_inode" && "$current_size" -lt "$last_pos" && -f "$ROTATED_LOGFILE" ]]; then
+                    echo "Logfile was rotated. Processing the rotated log file: $ROTATED_LOGFILE"
+                    jvb_log_parse "$ROTATED_LOGFILE" 0 "$verbose"
+                    last_file="$ROTATED_LOGFILE"
+                    last_inode=$(stat -c '%i' "$ROTATED_LOGFILE")
+                    last_filetime=$(stat -c '%Y' "$ROTATED_LOGFILE")
+                    set_state "$last_file" "$last_filetime" "$last_size" "$last_pos" "$last_inode" "$jitsi_component"
+                fi
+
+                # parse the current log file
+                echo "Processing the current log file: $LOGFILE"
+                jvb_log_parse "$LOGFILE" "$last_pos" "$verbose"
+
+                if [[ "$verbose" == true ]]; then
+                    echo -e "\nNew last position after parsing: $new_last_pos"
+                fi
+
+                # update the state in db
+                set_state "$LOGFILE" "$current_filetime" "$current_size" "$new_last_pos" "$current_inode" "$jitsi_component"
+
+            done
+
+        fi
 
         echo "Data import finished."
         exit 0
