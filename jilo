@@ -123,9 +123,10 @@ jitsi_log_parse() {
     declare -A start_times
 
     # Get size and position for progress tracking
-    local total_size=$(stat -c '%s' "$file")
+    local total_size
+    total_size=$(stat -c '%s' "$file")
     local processed_lines=0
-    local procesed_bytes=0
+    local processed_bytes=0
 
     # We open the file and start reading from $start_pos bytes
     exec 3<"$file"
@@ -162,7 +163,7 @@ jitsi_log_parse() {
                     if [[ -n "$start_time" ]]; then
                         db_insert=$(printf "$db_insert_template" "$jitsi_component" "$conferenceName" "$conferenceId" "$start_time" "$end_time")
                         sqlite3 "$DB" "$db_insert"
-                        unset start_times["$conferenceId"]
+                        unset "start_times[$conferenceId]"
                     fi
                 fi
                 ;;
@@ -184,7 +185,7 @@ jitsi_log_parse() {
                     if [[ -n "$start_time" ]]; then
                         db_insert=$(printf "$db_insert_template" "$jitsi_component" "$conferenceName" "$conferenceId" "$start_time" "$end_time")
                         sqlite3 "$DB" "$db_insert"
-                        unset start_times["$conferenceName"]
+                        unset "start_times[$conferenceName]"
                     fi
                 fi
                 ;;
@@ -289,7 +290,7 @@ case "$cmd" in
             for jitsi_component in "${jitsi_components[@]}"; do
 
                 # Retrieve last log file and position inside it
-                IFS='|' read -r last_file last_filetime last_size last_pos last_inode <<< $(get_state "$jitsi_component")
+                IFS='|' read -r last_file last_filetime last_size last_pos last_inode <<< "$(get_state "$jitsi_component")"
 
                 # Initialize logfile vars
                 LOGFILE=$(eval "echo \$${jitsi_component}_LOGFILE")
@@ -356,7 +357,7 @@ case "$cmd" in
             for jitsi_component in "${jitsi_components[@]}"; do
 
                 # Retrieve last log file and position inside it
-                IFS='|' read -r last_file last_filetime last_size last_pos last_inode <<< $(get_state "$jitsi_component")
+                IFS='|' read -r last_file last_filetime last_size last_pos last_inode <<< "$(get_state "$jitsi_component")"
 
                 # Initialize logfile vars
                 LOGFILE=$(eval "echo \$${jitsi_component}_LOGFILE")
