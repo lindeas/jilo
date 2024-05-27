@@ -1,3 +1,4 @@
 *.log
 *.log.*
 jitsi-stats.db
+jilo.db
