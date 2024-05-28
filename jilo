@@ -383,7 +383,11 @@ case "$cmd" in
                 jitsi_log_parse "$LOGFILE" "$last_pos" "$verbose"
 
                 if [[ "$verbose" == true ]]; then
-                    echo -e "\nNew last position after parsing: $new_last_pos"
+                    if [[ "$new_last_pos" == "$last_pos" ]]; then
+                        echo "The file has not changed, no new data inserted."
+                    else
+                        echo -e "\nNew last position after parsing: $new_last_pos"
+                    fi
                 fi
 
                 # update the state in db
