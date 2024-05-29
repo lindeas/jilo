@@ -6,6 +6,8 @@
 # Bash script for Jitsi Meet components (Videobridge, Jicofo, etc.) logs parsing
 ###
 
+### Configuration file (overrides default configs)
+CONFIG_FILE="./jilo.conf"
 
 ### Default configuration
 
@@ -14,11 +16,15 @@ DEFAULT_JVB_LOGFILE="/var/log/jitsi/jvb.log"
 DEFAULT_JVB_PROCESS="videobridge"
 DEFAULT_JICOFO_LOGFILE="/var/log/jitsi/jicofo.log"
 DEFAULT_JICOFO_PROCESS="jicofo"
+# Default database type (sqlite, mysql|mariadb)
+DEFAULT_DB_TYPE="sqlite"
 # Default SQLite database file
 DEFAULT_DB="./jilo.db"
-
-# Configuration file
-CONFIG_FILE="./jilo.conf"
+# Default MySQL/MariaDB configuration
+DEFAULT_MYSQL_HOST="localhost"
+DEFAULT_MYSQL_USER="jilo"
+DEFAULT_MYSQL_PASS="jilopass"
+DEFAULT_MYSQL_DB="jilo_db"
 
 # Load configurations from the config file if it exists
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -31,10 +37,15 @@ JVB_PROCESS=${JVB_PROCESS:-$DEFAULT_JVB_PROCESS}
 JICOFO_LOGFILE=${JICOFO_LOGFILE:-$DEFAULT_JICOFO_LOGFILE}
 JICOFO_PROCESS=${JICOFO_PROCESS:-$DEFAULT_JICOFO_PROCESS}
 DB=${DB:-$DEFAULT_DB}
+DB_TYPE=${DB_TYPE:-$DEFAULT_DB_TYPE}
+MYSQL_HOST=${MYSQL_HOST:-$DEFAULT_MYSQL_HOST}
+MYSQL_USER=${MYSQL_USER:-$DEFAULT_MYSQL_USER}
+MYSQL_PASS=${MYSQL_PASS:-$DEFAULT_MYSQL_PASS}
+MYSQL_DB=${MYSQL_DB:-$DEFAULT_MYSQL_DB}
 
 ###
 
-# SQLite queries
+# DB queries
 db_get_state_template="SELECT filename, filetime, filesize, position, inode FROM state WHERE jitsi_component = '%s';"
 db_set_state_template="UPDATE state SET time=datetime('now'), filename='%s', filetime='%s', filesize='%s', position='%s', inode='%s' WHERE jitsi_component = '%s';"
 db_insert_template="INSERT INTO conferences (jitsi_component, conference_name, conference_id, start, end) VALUES ('%s', '%s', '%s', '%s', '%s');"
@@ -90,12 +101,30 @@ check_requirements
 
 ###
 
-# DB functions
+# DB functions for Sqlite3 and for MySQL/MariaDB
+
+# normalize DB schemas for Sqlite3 and MySQL/MariaDB in order to compare them when needed
+db_normalize_schema() {
+    echo "$1" | tr -d '\n' | tr -s ' ' | sed 's/,/,\n/g' | sort
+}
+
+# execute a query and return the result
+db_query() {
+    local query=$1
+    if [[ "$DB_TYPE" == "sqlite" ]]; then
+        sqlite3 "$DB" "$query"
+    elif [[ "$DB_TYPE" == "mysql" || "$DB_TYPE" == "mariadb" ]]; then
+        mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p "$MYSQL_PASS" -D "$MYSQL_DB" -se "$query"
+    else
+        echo "Error: unknown database type $DB_TYPE."
+        exit 1
+    fi
+}
 
 # Get the last processed state from the database
 get_state() {
     db_get_state=$(printf "$db_get_state_template" "$1")
-    sqlite3 "$DB" "$db_get_state"
+    db_query "$db_get_state"
 }
 
 # Update the state database
@@ -107,7 +136,7 @@ set_state() {
     local inode=$5
     local jitsi_component=$6
     db_set_state=$(printf "$db_set_state_template" "$filename" "$filetime" "$filesize" "$position" "$inode" "$jitsi_component")
-    sqlite3 "$DB" "$db_set_state"
+    db_query "$db_set_state"
 }
 
 ###
@@ -162,7 +191,7 @@ jitsi_log_parse() {
 
                     if [[ -n "$start_time" ]]; then
                         db_insert=$(printf "$db_insert_template" "$jitsi_component" "$conferenceName" "$conferenceId" "$start_time" "$end_time")
-                        sqlite3 "$DB" "$db_insert"
+                        db_query "$db_insert"
                         unset "start_times[$conferenceId]"
                     fi
                 fi
@@ -184,7 +213,7 @@ jitsi_log_parse() {
 
                     if [[ -n "$start_time" ]]; then
                         db_insert=$(printf "$db_insert_template" "$jitsi_component" "$conferenceName" "$conferenceId" "$start_time" "$end_time")
-                        sqlite3 "$DB" "$db_insert"
+                        db_query "$db_insert"
                         unset "start_times[$conferenceName]"
                     fi
                 fi
@@ -237,32 +266,66 @@ shift $((OPTIND -1))
 case "$cmd" in
 
     --create-db)
-        sqlite3 "$DB" "$db_drop"
-        sqlite3 "$DB" "$db_create"
-        sqlite3 "$DB" "$db_init"
+        db_query "$db_drop"
+        db_query "$db_create"
+        db_query "$db_init"
         echo "Database created."
         exit 0
         ;;
 
     --flush)
-        sqlite3 "$DB" "$db_flush"
-        sqlite3 "$DB" "$db_init"
+        db_query "$db_flush"
+        db_query "$db_init"
         echo "Tables flushed."
         exit 0
         ;;
 
     --check)
 
-        # First check if database exists
-        if [[ ! -f "$DB" ]]; then
-            echo "Database not found. If it's a fresh install, please install the database first."
-            exit 1
-        fi
+        # database checks
+        if [[ "$DB_TYPE" == "sqlite" ]]; then
 
-        # compare the DB schema to the expected one
-        current_db_schema=$(sqlite3 "$DB" .schema)
-        if [[ "$current_db_schema" != "$db_create" ]]; then
-            echo "The database doesn't match the expected schema. Please check it, and if needed, reinstall it."
+            # First check if database exists
+            if [[ ! -f "$DB" ]]; then
+                echo "Database not found. If it's a fresh install, please install the database first."
+                exit 1
+            fi
+
+            # get current and expected db schemas in comparable format
+            current_db_schema=$(sqlite3 "$DB" .schema)
+            current_db_schema_normalized=$(db_normalize_schema "$current_db_schema")
+            expected_db_schema_normalized=$(db_normalize_schema "$db_create")
+
+            # compare the DB schema to the expected one
+            if [[ "$current_db_schema_normalized" != "$expected_db_schema_normalized" ]]; then
+                echo "The database doesn't match the expected schema. Please check it, and if needed, reinstall it."
+                exit 1
+            fi
+
+        elif [[ "$DB_TYPE" == "mysql" || "$DB_TYPE" == "mariadb" ]]; then
+
+            # First check if database exists
+            if ! mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p "$MYSQL_PASS" -e "USE $MYSQL_DB"; then
+                echo "Database not found. If it's a fresh install, please install the database first."
+                exit 1
+            fi
+
+            # get current and expected db schemas in comparable format
+            current_db_schema=''
+            for table in conferences state; do
+                current_db_schema+=$(mysql -h "$MYQL_HOST" -u "$MYSQL_USER" -p "$MYSQL_PASS" -D "$MYSQL_DB" -e "SHOW CREATE TABLE $table\G" | grep -v "Table" | grep -v "Create Table" | sed 's/^\s*//g')
+            done
+            current_db_schema_normalized=$(db_normalize_schema "$current_db_schema")
+            expected_db_schema_normalized=$(db_normalize_schema "$db_create")
+
+            # compare the DB schema to the expected one
+            if [[ "$current_db_schema_normalized" != "$expected_db_schema_normalized" ]]; then
+                echo "The database doesn't match the expected schema. Please check it, and if needed, reinstall it."
+                exit 1
+            fi
+
+        else
+            echo "Error: unknown database type $DB_TYPE."
             exit 1
         fi
 
