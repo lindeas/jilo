@@ -105,7 +105,7 @@ check_requirements
 
 # normalize DB schemas for Sqlite3 and MySQL/MariaDB in order to compare them when needed
 db_normalize_schema() {
-    echo "$1" | tr -d '\n' | tr -s ' ' | sed 's/,/,\n/g' | sort
+    echo "$1" | tr -d '\n' | tr -s ' ' | tr ',' '\n' | sort
 }
 
 # execute a query and return the result
@@ -310,10 +310,18 @@ case "$cmd" in
                 exit 1
             fi
 
+            # Get the list of tables, omiting the 'show tables' header
+            tables=()
+            while IFS= read -r line; do
+                tables+=("$line")
+            done < <(mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p "$MYSQL_PASS" -D "$MYSQL_DB" -e "SHOW TABLES;" | tail -n +2)
+
             # get current and expected db schemas in comparable format
             current_db_schema=''
-            for table in conferences state; do
-                current_db_schema+=$(mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p "$MYSQL_PASS" -D "$MYSQL_DB" -e "SHOW CREATE TABLE $table\G" | grep -v "Table" | grep -v "Create Table" | sed 's/^\s*//g')
+            for table in ${tables[@]}; do
+                create_table_string=$(mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p "$MYSQL_PASS" -D "$MYSQL_DB" -e "SHOW CREATE TABLE $table\G" | grep -v "Table" | grep -v "Create Table")
+                create_table_string="${create_table_string#"${create_table_string%%[^[:space:]]*}"}" # remove leading spaces"
+                current_db_schema+="$create_table_string"
             done
             current_db_schema_normalized=$(db_normalize_schema "$current_db_schema")
             expected_db_schema_normalized=$(db_normalize_schema "$db_create")
