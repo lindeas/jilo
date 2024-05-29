@@ -48,9 +48,12 @@ MYSQL_DB=${MYSQL_DB:-$DEFAULT_MYSQL_DB}
 # DB queries
 db_get_state_template="SELECT filename, filetime, filesize, position, inode FROM state WHERE jitsi_component = '%s';"
 db_set_state_template="UPDATE state SET time=datetime('now'), filename='%s', filetime='%s', filesize='%s', position='%s', inode='%s' WHERE jitsi_component = '%s';"
-db_insert_template="INSERT INTO conferences (jitsi_component, conference_name, conference_id, start, end) VALUES ('%s', '%s', '%s', '%s', '%s');"
+db_insert_conference_template="INSERT INTO conferences (jitsi_component, conference_name, conference_id, start, end) VALUES ('%s', '%s', '%s', '%s', '%s');"
+db_insert_participant_template="INSERT INTO participants (conference_id, event_time, event_type, endpoint_id, stats_id) VALUES ('%s', '%s', '%s', '%s', '%s');"
+
 db_drop="
 DROP TABLE IF EXISTS conferences;
+DROP TABLE IF EXISTS participants;
 DROP TABLE IF EXISTS state;"
 db_create="CREATE TABLE conferences (
     id INTEGER PRIMARY_KEY,
@@ -59,6 +62,14 @@ db_create="CREATE TABLE conferences (
     conference_id TEXT,
     start TEXT,
     end TEXT
+);
+CREATE TABLE participants (
+    id INTEGER PRIMARY_KEY,
+    conference_id INTEGER,
+    event_time TEXT,
+    event_type TEXT,
+    endpoint_id TEXT,
+    stats_id TEXT
 );
 CREATE TABLE state (
     id INTEGER PRIMARY_KEY,
@@ -72,9 +83,10 @@ CREATE TABLE state (
 );"
 db_init="
 INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (1, 'JVB', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);
-INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (1, 'JICOFO', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
+INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (2, 'JICOFO', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
 db_flush="
 DELETE FROM conferences;
+DELETE FROM participants;
 DELETE FROM state;"
 
 help="Usage:\n\t$0 [OPTION]\nOptions:\n\t--create-db|-d - create the database\n\t--flush|-f - flush the tables\n\t--check|-c - check for new data\n\t--parse|-p [-v] - parse the logs [verbosely]"
@@ -182,6 +194,17 @@ jitsi_log_parse() {
                     conferenceId="${BASH_REMATCH[2]}"
                     start_times["$conferenceId"]="$timestamp"
 
+                # locate participant join event
+                elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=${conferenceId}\ .*epId=([a-zA-Z0-9-]+)\ stats_id=([a-zA-Z0-9-]+)\ .*Starting\ the\ Agent\ without\ remote\ candidates ]]; then
+                    participant_join_time="${BASH_REMATCH[1]}"
+                    event_type='participant joining'
+                    participant_endpoint_id="${BASH_REMATCH[2]}"
+                    participant_stats_id="${BASH_REMATCH[3]}"
+                    if [[ -n "$conferenceId" ]]; then
+                        db_insert=$(printf "$db_insert_participant_template" "$conferenceId" "$participant_join_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id")
+                        db_query "$db_insert"
+                    fi
+
                 # locate the corresponding conference ending event
                 elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=([a-zA-Z0-9]+)\ .*conf_name=([^ ]+)@.*\]\ Conference\.expire ]]; then
                     end_time="${BASH_REMATCH[1]}"
@@ -190,7 +213,7 @@ jitsi_log_parse() {
                     start_time="${start_times["$conferenceId"]}"
 
                     if [[ -n "$start_time" ]]; then
-                        db_insert=$(printf "$db_insert_template" "$jitsi_component" "$conferenceName" "$conferenceId" "$start_time" "$end_time")
+                        db_insert=$(printf "$db_insert_conference_template" "$jitsi_component" "$conferenceName" "$conferenceId" "$start_time" "$end_time")
                         db_query "$db_insert"
                         unset "start_times[$conferenceId]"
                     fi
@@ -212,7 +235,7 @@ jitsi_log_parse() {
                     start_time="${start_times["$conferenceName"]}"
 
                     if [[ -n "$start_time" ]]; then
-                        db_insert=$(printf "$db_insert_template" "$jitsi_component" "$conferenceName" "$conferenceId" "$start_time" "$end_time")
+                        db_insert=$(printf "$db_insert_conference_template" "$jitsi_component" "$conferenceName" "$conferenceId" "$start_time" "$end_time")
                         db_query "$db_insert"
                         unset "start_times[$conferenceName]"
                     fi
