@@ -195,7 +195,7 @@ jitsi_log_parse() {
                     conferenceId="${BASH_REMATCH[2]}"
                     start_times["$conferenceId"]="$timestamp"
 
-                # locate participant join event
+                # locate participant joining event
                 elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=${conferenceId}\ .*epId=([a-zA-Z0-9-]+)\ stats_id=([a-zA-Z0-9-]+)\ .*Starting\ the\ Agent\ without\ remote\ candidates ]]; then
                     participant_join_time="${BASH_REMATCH[1]}"
                     event_type='participant joining'
@@ -217,6 +217,19 @@ jitsi_log_parse() {
                         db_insert=$(printf "$db_insert_participant_template" "$conferenceId" "$participant_join_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "$participant_IP")
                         db_query "$db_insert"
                     fi
+
+                # locate participant leaving event
+                elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=${conferenceId}\ .*epId=([a-zA-Z0-9-]+)\ stats_id=([a-zA-Z0-9-]+)\]\ Endpoint\.expire.*:\ Expired\. ]]; then
+                    participant_join_time="${BASH_REMATCH[1]}"
+                    event_type='participant leaving'
+                    participant_endpoint_id="${BASH_REMATCH[2]}"
+                    participant_stats_id="${BASH_REMATCH[3]}"
+                    participant_IP="${BASH_REMATCH[5]}"
+                    if [[ -n "$conferenceId" ]]; then
+                        db_insert=$(printf "$db_insert_participant_template" "$conferenceId" "$participant_join_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "$participant_IP")
+                        db_query "$db_insert"
+                    fi
+
 
 
                 # locate the corresponding conference ending event
