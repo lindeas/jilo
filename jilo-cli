@@ -80,20 +80,29 @@ db_query() {
     fi
 }
 
-# commandline options
+### commandline options
 
-while  getopts ":cpt" opt; do
-    case $opt in
-        c)
+cmd=""
+
+while  [[ $# -gt 0 ]]; do
+    case "$1" in
+        -c | --conferences )
             cmd="--conferences"
+            shift
             ;;
-        p)
+        -p | --participants)
             cmd="--participants"
+            shift
             ;;
-        t)
+        -t | --time)
             cmd="--time"
+            sift
             ;;
-        \?)
+        -h | --help)
+            echo -e "$help"
+            exit 0
+            ;;
+        *)
             echo "Invalid option: -$OPTARG" >&2
             echo -e "$help"
             exit 1
@@ -110,7 +119,7 @@ case "$cmd" in
         exit 0
         ;;
 
-    --participant|--participants)
+    --participants)
         db_stats_participants=$(printf "$db_stats_participants_template" )
         db_query "$db_stats_participants"
         exit 0
