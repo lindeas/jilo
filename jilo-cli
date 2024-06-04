@@ -38,10 +38,22 @@ MYSQL_DB=${MYSQL_DB:-$DEFAULT_MYSQL_DB}
 ###
 
 # DB queries
-db_stats_conferences_template="SELECT * FROM conferences WHERE conference_id='%s';"
-db_stats_participants_template="SELECT * FROM participants;"
+db_stats_conferences_all_template="SELECT * FROM conferences;"
+db_stats_conferences_name_template="SELECT * FROM conferences WHERE conference_name='%s';"
+db_stats_conferences_id_template="SELECT * FROM conferences WHERE conference_id='%s';"
+db_stats_participants_all_template="SELECT * FROM participants;"
+db_stats_participants_conference_template="SELECT * FROM participants WHERE conference_id='%s';"
+db_stats_participants_event_template="SELECT * FROM participants WHERE event_type LIKE '%%%s%%';"
+db_stats_participants_endpoint_template="SELECT * FROM participants WHERE endpoint_id='%s';"
+db_stats_participants_statsid_template="SELECT * FROM participants WHERE stats_id='%s';"
+db_stats_participants_ip_template="SELECT * FROM participants WHERE participant_ip='%s';"
 
-help="Usage:\n\t$0 [OPTION]\nOptions:\n\t--conferences|-c [conference ID] - show conference stats\n\t--participants|-p - show participants stats\n\t--time|-t - show stats for a time interval"
+help="Usage:
+    $0 [OPTION]
+    Options:
+        --conference|-c [conference ID or name] - show specific conference, all of empty
+        --participant|-p [conference ID, participant IP or word from the event type] - show specific participant, all if empty
+        --time|-t - show stats for a time interval"
 
 ###
 
@@ -83,22 +95,28 @@ db_query() {
 ### commandline options
 
 cmd=""
-conference_id=""
+conference_arg=""
+participant_arg=""
 
 while  [[ $# -gt 0 ]]; do
     case "$1" in
-        -c | --conferences )
-            cmd="--conferences"
+        -c | --conference )
+            cmd="--conference"
             if [[ -n "$2" && "$2" != -* ]]; then
-                conference_id="$2"
+                conference_arg="$2"
                 shift 2
             else
                 shift
             fi
             ;;
-        -p | --participants)
-            cmd="--participants"
-            shift
+        -p | --participant)
+            cmd="--participant"
+            if [[ -n "$2" && "$2" != -* ]]; then
+                participant_arg="$2"
+                shift 2
+            else
+                shift
+            fi
             ;;
         -t | --time)
             cmd="--time"
@@ -118,22 +136,38 @@ done
 
 case "$cmd" in
 
-    --conferences)
-        if [[ -n "$conference_id" ]]; then
-            db_stats_conferences=$(printf "$db_stats_conferences_template" "$conference_id")
-            db_query "$db_stats_conferences"
+    --conference)
+        if [[ -n "$conference_arg" ]]; then
+            db_stats_conferences_id=$(printf "$db_stats_conferences_id_template" "$conference_arg")
+            db_query "$db_stats_conferences_id"
+            db_stats_conferences_name=$(printf "$db_stats_conferences_name_template" "$conference_arg")
+            db_query "$db_stats_conferences_name"
             exit 0
         else
-            db_stats_conferences=$(printf "$db_stats_conferences_template" ".*")
-            db_query "$db_stats_conferences"
+            db_stats_conferences_all=$(printf "$db_stats_conferences_all_template")
+            db_query "$db_stats_conferences_all"
             exit 0
         fi
         ;;
 
-    --participants)
-        db_stats_participants=$(printf "$db_stats_participants_template" )
-        db_query "$db_stats_participants"
-        exit 0
+    --participant)
+        if [[ -n "$participant_arg" ]]; then
+            db_stats_participants_conference=$(printf "$db_stats_participants_conference_template" "$participant_arg")
+            db_query "$db_stats_participants_conference"
+            db_stats_participants_event=$(printf "$db_stats_participants_event_template" "$participant_arg")
+            db_query "$db_stats_participants_event"
+            db_stats_participants_endpoint=$(printf "$db_stats_participants_endpoint_template" "$participant_arg")
+            db_query "$db_stats_participants_endpoint"
+            db_stats_participants_statsid=$(printf "$db_stats_participants_statsid_template" "$participant_arg")
+            db_query "$db_stats_participants_statsid"
+            db_stats_participants_ip=$(printf "$db_stats_participants_ip_template" "$participant_arg")
+            db_query "$db_stats_participants_ip"
+            exit 0
+        else
+            db_stats_participants_all=$(printf "$db_stats_participants_all_template" )
+            db_query "$db_stats_participants_all"
+            exit 0
+        fi
         ;;
 
     --time)
