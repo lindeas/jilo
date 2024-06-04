@@ -38,10 +38,10 @@ MYSQL_DB=${MYSQL_DB:-$DEFAULT_MYSQL_DB}
 ###
 
 # DB queries
-db_stats_conferences_template="SELECT * FROM conferences;"
+db_stats_conferences_template="SELECT * FROM conferences WHERE conference_id='%s';"
 db_stats_participants_template="SELECT * FROM participants;"
 
-help="Usage:\n\t$0 [OPTION]\nOptions:\n\t--conferences|-c - show conference stats\n\t--participants|-p - show participants stats\n\t--time|-t - show stats for a time interval"
+help="Usage:\n\t$0 [OPTION]\nOptions:\n\t--conferences|-c [conference ID] - show conference stats\n\t--participants|-p - show participants stats\n\t--time|-t - show stats for a time interval"
 
 ###
 
@@ -83,12 +83,18 @@ db_query() {
 ### commandline options
 
 cmd=""
+conference_id=""
 
 while  [[ $# -gt 0 ]]; do
     case "$1" in
         -c | --conferences )
             cmd="--conferences"
-            shift
+            if [[ -n "$2" && "$2" != -* ]]; then
+                conference_id="$2"
+                shift 2
+            else
+                shift
+            fi
             ;;
         -p | --participants)
             cmd="--participants"
@@ -103,20 +109,25 @@ while  [[ $# -gt 0 ]]; do
             exit 0
             ;;
         *)
-            echo "Invalid option: -$OPTARG" >&2
+            echo "Invalid option: $1" >&2
             echo -e "$help"
             exit 1
             ;;
     esac
 done
-shift $((OPTIND -1))
 
 case "$cmd" in
 
     --conferences)
-        db_stats_conferences=$(printf "$db_stats_conferences_template" )
-        db_query "$db_stats_conferences"
-        exit 0
+        if [[ -n "$conference_id" ]]; then
+            db_stats_conferences=$(printf "$db_stats_conferences_template" "$conference_id")
+            db_query "$db_stats_conferences"
+            exit 0
+        else
+            db_stats_conferences=$(printf "$db_stats_conferences_template" ".*")
+            db_query "$db_stats_conferences"
+            exit 0
+        fi
         ;;
 
     --participants)
