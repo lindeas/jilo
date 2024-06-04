@@ -7,15 +7,17 @@
 # Command line interface (jilo-cli)
 ###
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" #"
+
 ### Configuration file (overrides default configs)
-CONFIG_FILE="./jilo.conf"
+CONFIG_FILE="$SCRIPT_DIR/jilo.conf"
 
 ### Default configuration
 
 # Default database type (sqlite, mysql|mariadb)
 DEFAULT_DB_TYPE="sqlite"
 # Default SQLite database file
-DEFAULT_DB="./jilo.db"
+DEFAULT_DB="$SCRIPT_DIR/jilo.db"
 # Default MySQL/MariaDB configuration
 DEFAULT_MYSQL_HOST="localhost"
 DEFAULT_MYSQL_USER="jilo"
@@ -265,8 +267,8 @@ case "$cmd" in
         if [[ "$time_range_specified" == true ]]; then
             db_stats_conferences_time=$(printf "$db_stats_conferences_time_template" "$from_time" "$until_time")
             db_query "$db_stats_conferences_time"
+            exit 0
         fi
-        exit 0
         ;;
 
     *)

@@ -6,8 +6,10 @@
 # Bash script for Jitsi Meet components (Videobridge, Jicofo, etc.) logs parsing
 ###
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" #"
+
 ### Configuration file (overrides default configs)
-CONFIG_FILE="./jilo.conf"
+CONFIG_FILE="$SCRIPT_DIR/jilo.conf"
 
 ### Default configuration
 
@@ -19,7 +21,7 @@ DEFAULT_JICOFO_PROCESS="jicofo"
 # Default database type (sqlite, mysql|mariadb)
 DEFAULT_DB_TYPE="sqlite"
 # Default SQLite database file
-DEFAULT_DB="./jilo.db"
+DEFAULT_DB="$SCRIPT_DIR/jilo.db"
 # Default MySQL/MariaDB configuration
 DEFAULT_MYSQL_HOST="localhost"
 DEFAULT_MYSQL_USER="jilo"
