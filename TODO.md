@@ -8,7 +8,7 @@
     - Prometheus
     - InfluxDB
 * Add more stats:
-    - participants (join/leave time and details)
+    - ~~participants (join/leave time and details)~~
     - issues
     - errors
     - info about JVBs used
