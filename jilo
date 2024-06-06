@@ -111,6 +111,7 @@ check_requirements() {
     if [[ "$requirements_missing" != '' ]]; then
         requirements_missing=${requirements_missing::-2}
         echo "Error: $requirements_missing - not found. Please install to proceed."
+        exit 1
     fi
 }
 check_requirements
