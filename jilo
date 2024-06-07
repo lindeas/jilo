@@ -228,7 +228,7 @@ jitsi_log_parse() {
                         db_insert=$(printf "$db_insert_participant_template" "$jitsi_component" "$conference_id" "$event_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "$participant_IP")
                         db_query "$db_insert"
                         # the participant left, forget about him
-                        unset $event_time $event_type $participant_endpoint_id $participant_stats_id $participant_IP
+                        unset "$event_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "$participant_IP"
                     fi
 
                 # locate the corresponding conference ending event
@@ -242,7 +242,7 @@ jitsi_log_parse() {
                         db_insert=$(printf "$db_insert_conference_template" "$jitsi_component" "$conference_name" "$conference_id" "$start_time" "$end_time")
                         db_query "$db_insert"
                         # the conference ended, forget about it
-                        unset "start_times[$conference_id]" $start_time $end_time $conference_id $conference_name
+                        unset "start_times[$conference_id]" "$start_time" "$end_time" "$conference_id" "$conference_name"
                     fi
                 fi
                 ;;
@@ -392,7 +392,7 @@ case "$cmd" in
 
             # get current and expected db schemas in comparable format
             current_db_schema=''
-            for table in ${tables[@]}; do
+            for table in "${tables[@]}"; do
                 create_table_string=$(mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p "$MYSQL_PASS" -D "$MYSQL_DB" -e "SHOW CREATE TABLE $table\G" | grep -v "Table" | grep -v "Create Table")
                 create_table_string="${create_table_string#"${create_table_string%%[^[:space:]]*}"}" # remove leading spaces"
                 current_db_schema+="$create_table_string"
