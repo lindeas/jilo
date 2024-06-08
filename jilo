@@ -309,33 +309,66 @@ is_process_running() {
     pgrep -f "$1" >/dev/null 2>&1
 }
 
-# commandline options
+### Commandline options
 
-while getopts ":dfcpv" opt; do
-    case $opt in
-        d)
+verbose=false
+
+# Expand combined multiple short options
+expand_options() {
+    local arg="$1"
+    local expanded=""
+    local i
+    for ((i=1; i<${#arg}; i++)); do
+        expanded="${expanded} -${arg:i:1}"
+    done
+    echo "$expanded"
+}
+
+# We try to distinguish short ("-o") and long ("--option") options
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        # only one dash, could be short option
+        -[!-]?*)
+            args+=("$(expand_options "$1")")
+            ;;
+        # all other cases, including long option
+        *)
+            args+=("$1")
+            ;;
+    esac
+    shift
+done
+
+# switch between the options
+for arg in "${args[@]}"; do
+    case "$arg" in
+        -d | --create-db)
             cmd="--create-db"
             ;;
-        f)
+        -f | --flush)
             cmd="--flush"
             ;;
-        c)
+        -c | --check)
             cmd="--check"
             ;;
-        p)
+        -p | --parse)
             cmd="--parse"
             ;;
-        v)
+        -v | --verbose)
             verbose=true
             ;;
-        \?)
+        -h | --help)
+            echo -e "$help"
+            exit 0
+            ;;
+        *)
             echo "Invalid option: -$OPTARG" >&2
             echo -e "$help"
             exit 1
             ;;
     esac
 done
-shift $((OPTIND -1))
 
 case "$cmd" in
 
