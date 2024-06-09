@@ -93,7 +93,13 @@ DELETE FROM conferences;
 DELETE FROM participants;
 DELETE FROM state;"
 
-help="Usage:\n\t$0 [OPTION]\nOptions:\n\t--create-db|-d - create the database\n\t--flush|-f - flush the tables\n\t--check|-c - check for new data\n\t--parse|-p [-v] - parse the logs [verbosely]"
+help="Usage:
+    $0 [OPTION]
+    Options:
+        --create-db|-d - create the database
+        --flush|-f - flush the tables
+        --check|-c [-v] - check for new data [verbosely]
+        --parse|-p [-v] - parse the logs [verbosely]"
 
 ###
 
@@ -482,20 +488,22 @@ case "$cmd" in
                     exit 0
                 fi
 
-                # report
-                echo "Last file: $last_file"
-                echo "Last filetime: $last_filetime"
-                echo "Last inode: $last_inode"
-                echo "Last size: $last_size"
-                echo "Last processed position: $last_pos"
-                echo "Current filetime: $current_filetime"
-                echo "Current inode: $current_inode"
-                echo "Current size: $current_size"
+                echo "File: $last_file"
+                # verbose report
+                if [[ $verbose == true ]]; then
+                    echo -e "Last filetime:\t$last_filetime" | expand -t 30
+                    echo -e "Current filetime:\t$current_filetime" | expand -t 30
+                    echo -e "Last inode:\t$last_inode" | expand -t 30
+                    echo -e "Current inode:\t$current_inode" | expand -t 30
+                    echo -e "Last size:\t$last_size" | expand -t 30
+                    echo -e "Current size:\t$current_size" | expand -t 30
+                    echo -e "Last processed position:\t$last_pos" | expand -t 30
+                fi
 
                 if [[ "$last_inode" == "$current_inode" && "$current_size" -lt "$last_pos" && -f "$ROTATED_LOGFILE" ]]; then
-                    echo "Log file has rotated."
+                    echo -n "Log file has rotated. "
                 else
-                    echo "Log file has not rotated."
+                    echo -n "Log file has not rotated. "
                 fi
 
                 if [[ "$current_filetime" -ne "$last_filetime" || "$current_size" -ne "$last_size" ]]; then
