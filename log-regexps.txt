@@ -1,4 +1,7 @@
-This is a reference of the log lines and the corresponding regexps that are used in Jilo for events tracking
+This is a reference of the log lines and the corresponding regexps that are used in Jilo for events tracking.
+
+Work in progress.
+2024.06.10
 
 
 JVB:
@@ -14,7 +17,14 @@ log
 JVB 2024-04-01 03:04:24.339 INFO: [18981] [confId=4c14584fce9a5970 conf_name=someroom123@conference.meet.example.com meeting_id=177c43a3] EndpointConnectionStatusMonitor.stop#66: Stopped
 regex
 
+participant joining
+([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=${conference_id}\ .*epId=([a-zA-Z0-9-]+)\ stats_id=([a-zA-Z0-9-]+)\ .*Starting\ the\ Agent\ without\ remote\ candidates
 
+pair selection
+([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=${conference_id}\ .*epId=${participant_endpoint_id}\ stats_id=${participant_stats_id}\ .*Selected\ pair\ for\ stream\ .*([0-9.]+):10000/udp/srflx\ \-\>\ ([0-9.]+):[0-9]+/udp/prflx
+
+participant leaving
+([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=${conference_id}\ .*epId=${participant_endpoint_id}\ stats_id=${participant_stats_id}\]\ Endpoint\.expire.*:\ Expired\.
 
 
 ## OLD
@@ -33,3 +43,23 @@ log
 JVB 2024-04-01 03:04:24.339 INFO: [18981] [confId=4c14584fce9a5970 conf_name=someroom123@conference.meet.example.com meeting_id=177c43a3] Conference.expire#595: Expiring.
 regex
 ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=([a-zA-Z0-9]+)\ .*conf_name=([^ ]+)@.*\]\ Conference\.expire
+
+
+
+JICOFO:
+
+conference start
+([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=([^ ]+)@.*\]\ JitsiMeetConferenceImpl\.joinTheRoom
+
+participant joining
+([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+)\]\ .*\.onMemberJoined.*:\ Member\ joined:([a-zA-Z0-9]+)\ stats-id=([a-zA-Z0-9-]+)
+
+bridge selection
+([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*BridgeSelectionStrategy.select#.*:\ Selected.*\[jid=[a-z]@.*\/(.*),\ 
+
+participant leaving
+([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=${conference_name}@.*\ meeting_id=${conference_id}\]\ .*\.removeParticipant#.*:\ Removing\ ([a-zA-Z0-9]+)
+
+conference end
+([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+)\]\ JitsiMeetConferenceImpl\.stop
+
