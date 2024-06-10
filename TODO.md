@@ -14,4 +14,5 @@
     - info about JVBs used
 ---
 * FIXMEs:
-    - long commandline options work ok in jilo-cli, but not in jilo - update them as in cli
+    - ~~long commandline options work ok in jilo-cli, but not in jilo - update them as in cli~~
+    - finish SQL refactoring, move to separate tables for conferences and participants, linked by id

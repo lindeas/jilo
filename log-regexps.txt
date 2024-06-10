@@ -1,0 +1,35 @@
+This is a reference of the log lines and the corresponding regexps that are used in Jilo for events tracking
+
+
+JVB:
+
+conference start:
+log
+JVB 2024-04-01 04:08:55.124 INFO: [19046] [confId=4c14584fce9a5970 conf_name=someroom123@conference.meet.example.com meeting_id=177c43a3] EndpointConnectionStatusMonitor.start#58: Starting connection status monitor
+regex
+JVB\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=([a-zA-Z]+)\ conf_name=(.*)@([a-zA-Z0-9-_.]+)\ meeting_id=.*\]\ EndpointConnectionStatusMonitor\.start.*:\ Starting\ connection\ status\ monitor
+
+conference end:
+log
+JVB 2024-04-01 03:04:24.339 INFO: [18981] [confId=4c14584fce9a5970 conf_name=someroom123@conference.meet.example.com meeting_id=177c43a3] EndpointConnectionStatusMonitor.stop#66: Stopped
+regex
+
+
+
+
+## OLD
+# was used to insert start & end in one db record,
+# retired because in "start" regex there was no conference name, only id
+##
+
+conference start:
+log
+JVB 2024-04-01 03:02:52.593 INFO: [18962] Videobridge.createConference#255: create_conf, id=4c14584fce9a5970 meeting_id=177c43a3-1780-4258-aa23-ca3d7dd29aa5
+regex
+([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\ Videobridge\.createConference#[0-9]+:\ create_conf,\ id=([a-zA-Z0-9]+)
+
+conference end:
+log
+JVB 2024-04-01 03:04:24.339 INFO: [18981] [confId=4c14584fce9a5970 conf_name=someroom123@conference.meet.example.com meeting_id=177c43a3] Conference.expire#595: Expiring.
+regex
+([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=([a-zA-Z0-9]+)\ .*conf_name=([^ ]+)@.*\]\ Conference\.expire
