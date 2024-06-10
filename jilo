@@ -50,33 +50,51 @@ MYSQL_DB=${MYSQL_DB:-$DEFAULT_MYSQL_DB}
 # DB queries
 db_get_state_template="SELECT filename, filetime, filesize, position, inode FROM state WHERE jitsi_component = '%s';"
 db_set_state_template="UPDATE state SET time=datetime('now'), filename='%s', filetime='%s', filesize='%s', position='%s', inode='%s' WHERE jitsi_component = '%s';"
-db_insert_conference_template="INSERT INTO conferences (jitsi_component, conference_name, conference_id, start, end) VALUES ('%s', '%s', '%s', '%s', '%s');"
-db_insert_participant_template="INSERT INTO participants (jitsi_component, conference_id, event_time, event_type, endpoint_id, stats_id, participant_ip) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s');"
+db_insert_conferences_template="INSERT INTO conferences (jitsi_component, conference_id, conference_name, conference_host) VALUES ('%s', '%s', '%s', '%s');"
+db_insert_conference_event_template="INSERT INTO conference_events (jitsi_component, time, conference_id, conference_event, conference_param) VALUES ('%s', '%s', '%s', '%s', '%s');"
+db_insert_participants_template="INSERT INTO participants (jitsi_component, endpoint_id, conference_id) VALUES ('%s', '%s', '%s');"
+db_insert_participant_event_template="INSERT INTO participants (jitsi_component, time, participant_id, event_type, event_param) VALUES ('%s', '%s', '%s', '%s', '%s');"
 
 db_drop="
 DROP TABLE IF EXISTS conferences;
+DROP TABLE IF EXISTS conference_events;
 DROP TABLE IF EXISTS participants;
+DROP TABLE IF EXISTS participant_events;
 DROP TABLE IF EXISTS state;"
 db_create="CREATE TABLE conferences (
-    id INTEGER PRIMARY_KEY,
-    jitsi_component TEXT,
-    conference_name TEXT,
-    conference_id TEXT,
-    start TEXT,
-    end TEXT
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jitsi_component TEXT NOT NULL,
+    conference_id TEXT NOT NULL,
+    conference_name TEXT NOT NULL,
+    conference_host TEXT NOT NULL
+);
+CREATE TABLE conference_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jitsi_component TEXT NOT NULL,
+    time TEXT NOT NULL,
+    conference_id INTEGER NOT NULL,
+    conference_event TEXT NOT NULL,
+    conference_param TEXT,
+    FOREIGN KEY (conference_id) REFERENCES conferences(id)
 );
 CREATE TABLE participants (
-    id INTEGER PRIMARY_KEY,
-    jitsi_component TEXT,
-    conference_id INTEGER,
-    event_time TEXT,
-    event_type TEXT,
-    endpoint_id TEXT,
-    stats_id TEXT,
-    participant_ip TEXT
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jitsi_component TEXT NOT NULL,
+    endpoint_id TEXT NOT NULL,
+    conference_id INTEGER NOT NULL,
+    FOREIGN KEY (conference_id) REFERENCES conferences(id)
+);
+CREATE TABLE participant_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jitsi_component TEXT NOT NULL,
+    time TEXT NOT NULL,
+    participant_id INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    event_param TEXT,
+    FOREIGN KEY (participant_id) REFERENCES participants(id)
 );
 CREATE TABLE state (
-    id INTEGER PRIMARY_KEY,
+    id INTEGER PRIMARY KEY,
     jitsi_component TEXT,
     time TEXT,
     filename TEXT,
@@ -90,7 +108,9 @@ INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, fil
 INSERT OR REPLACE INTO state (id, jitsi_component, time, filename, filetime, filesize, position, inode) VALUES (2, 'JICOFO', '1970-01-01 00:00:00.000', '', 0, 0, 0, 0);"
 db_flush="
 DELETE FROM conferences;
+DELETE FROM conference_events;
 DELETE FROM participants;
+DELETE FROM participant_events;
 DELETE FROM state;"
 
 help="Usage:
@@ -199,11 +219,24 @@ jitsi_log_parse() {
         case $jitsi_component in
 
             JVB)
-                # locate conference starting event
-                if [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\ Videobridge\.createConference#[0-9]+:\ create_conf,\ id=([a-zA-Z0-9]+) ]]; then
+                # conference starting event
+                if [[ "$line" =~ ${jitsi_component}\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=([a-zA-Z]+)\ conf_name=(.*)@([a-zA-Z0-9-_.]+)\ meeting_id=.*\]\ EndpointConnectionStatusMonitor\.start.*:\ Starting\ connection\ status\ monitor ]]; then
                     timestamp="${BASH_REMATCH[1]}"
-                    conference_id="${BASH_REMATCH[2]}"
-                    start_times["$conference_id"]="$timestamp"
+                    loglevel="${BASH_REMATCH[2]}"
+                    conference_id="${BASH_REMATCH[3]}"
+                    conference_name="${BASH_REMATCH[4]}"
+                    conference_host="${BASH_REMATCH[5]}"
+                    # we check if the conference exists, just in case
+                    db_get=$(printf "$db_get_conference" "$conference_id")
+                    existing_conference=$(db_query "$db_get")
+                    # new conference
+                    if [ -z "$existing_conference" ]; then
+                        db_insert=$(printf "$db_insert_conferences_template" "$jitsi_component" "$conference_id" "$conference_name" "$conference_host")
+                        db_query "$db_insert"
+                    # if for any reason it's an existing conference, update details
+                    else
+                        ## conference exists add info
+                    fi
 
                 # locate participant joining event
                 elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=${conference_id}\ .*epId=([a-zA-Z0-9-]+)\ stats_id=([a-zA-Z0-9-]+)\ .*Starting\ the\ Agent\ without\ remote\ candidates ]]; then
@@ -270,6 +303,19 @@ jitsi_log_parse() {
                     participant_stats_id="${BASH_REMATCH[5]}"
                     if [[ -n "$conference_id" ]]; then
                         db_insert=$(printf "$db_insert_participant_template" "$jitsi_component" "$conference_id" "$event_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "")
+                        db_query "$db_insert"
+                    fi
+
+                # locate the bridge selection event(s)
+                elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*BridgeSelectionStrategy.select#.*:\ Selected.*\[jid=[a-z]@.*\/(.*),\  ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    event_type='bridge selected'
+## FIXME, no data                    conference_name="${BASH_REMATCH[2]}"
+##                    conference_id="${BASH_REMATCH[3]}"
+##                    participant_endpoint_id="${BASH_REMATCH[4]}"
+##                    participant_stats_id="${BASH_REMATCH[5]}"
+                    if [[ -n "$conference_id" ]]; then
+                        db_insert=$(printf "$db_insert_conference_template" "$jitsi_component" "$conference_name" "$conference_id" "$event_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "")
                         db_query "$db_insert"
                     fi
 
