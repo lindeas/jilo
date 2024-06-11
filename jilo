@@ -50,10 +50,17 @@ MYSQL_DB=${MYSQL_DB:-$DEFAULT_MYSQL_DB}
 # DB queries
 db_get_state_template="SELECT filename, filetime, filesize, position, inode FROM state WHERE jitsi_component = '%s';"
 db_set_state_template="UPDATE state SET time=datetime('now'), filename='%s', filetime='%s', filesize='%s', position='%s', inode='%s' WHERE jitsi_component = '%s';"
+
+db_get_conference="SELECT * FROM conferences WHERE conference_id = '%s';"
 db_insert_conferences_template="INSERT INTO conferences (jitsi_component, conference_id, conference_name, conference_host) VALUES ('%s', '%s', '%s', '%s');"
-db_insert_conference_event_template="INSERT INTO conference_events (jitsi_component, time, conference_id, conference_event, conference_param) VALUES ('%s', '%s', '%s', '%s', '%s');"
+db_insert_conference_event_template="INSERT INTO conference_events (jitsi_component, loglevel, time, conference_id, conference_event, conference_param) VALUES ('%s', '%s', '%s', '%s', '%s', '%s');"
+db_update_conference_id_template="UPDATE conferences SET conference_id='%s' WHERE conference_name = '%s' AND jitsi_component = '%s';"
+## FIXME need a way to update conference_id in Jicofo room creation; conference_name is not unique, need a better way
+db_update_conference_events_id_template="UPDATE conference_events SET conference_id='%s' WHERE conference_name = '%s' AND jitsi_component = '%s';"
+
+db_get_participant="SELECT * FROM participants WHERE endpoint_id = '%s';"
 db_insert_participants_template="INSERT INTO participants (jitsi_component, endpoint_id, conference_id) VALUES ('%s', '%s', '%s');"
-db_insert_participant_event_template="INSERT INTO participants (jitsi_component, time, participant_id, event_type, event_param) VALUES ('%s', '%s', '%s', '%s', '%s');"
+db_insert_participant_event_template="INSERT INTO participant_events (jitsi_component, loglevel, time, participant_id, event_type, event_param) VALUES ('%s', '%s', '%s', '%s', '%s', '%s');"
 
 db_drop="
 DROP TABLE IF EXISTS conferences;
@@ -71,6 +78,7 @@ db_create="CREATE TABLE conferences (
 CREATE TABLE conference_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     jitsi_component TEXT NOT NULL,
+    loglevel TEXT,
     time TEXT NOT NULL,
     conference_id INTEGER NOT NULL,
     conference_event TEXT NOT NULL,
@@ -87,6 +95,7 @@ CREATE TABLE participants (
 CREATE TABLE participant_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     jitsi_component TEXT NOT NULL,
+    loglevel TEXT,
     time TEXT NOT NULL,
     participant_id INTEGER NOT NULL,
     event_type TEXT NOT NULL,
@@ -182,6 +191,32 @@ set_state() {
     db_query "$db_set_state"
 }
 
+# Check for a conference and add it if needed
+# input - jitsi_component, conference_id, conference_name, conference_host
+db_conference_check() {
+    db_get=$(printf "$db_get_conference" "$2")
+    existing_conference=$(db_query "$db_get")
+    if [ -z "$existing_conference" ]; then
+        # add new conference
+        db_insert=$(printf "$db_insert_conferences_template" "$1" "$2" "$3" "$4")
+        db_query "$db_insert"
+    fi
+}
+
+# Check for a participant and add it if needed
+# input - jitsi_component, endpoint_id, conference_id
+db_participant_check() {
+    db_get=$(printf "$db_get_participant" "$2")
+    existing_participant=$(db_query "$db_get")
+    if [ -z "$existing_participant" ]; then
+        # add new participant
+        db_insert=$(printf "$db_insert_participants_template" "$1" "$2" "$3")
+        db_query "$db_insert"
+    fi
+}
+
+
+
 ###
 
 # Main parsing funstion
@@ -190,9 +225,6 @@ jitsi_log_parse() {
     local file=$1
     local start_pos=$2
     new_last_pos="$start_pos"
-
-    # Local assoc array for conference events tracking
-    declare -A start_times
 
     # Get size and position for progress tracking
     local total_size
@@ -218,130 +250,171 @@ jitsi_log_parse() {
 
         case $jitsi_component in
 
+        # We always check if a conference or participant exists, because
+        # incomplete old logs may lead to corrupted stats otherwise
+
             JVB)
                 # conference starting event
-                if [[ "$line" =~ ${jitsi_component}\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=([a-zA-Z]+)\ conf_name=(.*)@([a-zA-Z0-9-_.]+)\ meeting_id=.*\]\ EndpointConnectionStatusMonitor\.start.*:\ Starting\ connection\ status\ monitor ]]; then
-                    timestamp="${BASH_REMATCH[1]}"
+                if [[ "$line" =~ ${jitsi_component}\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=([a-zA-Z0-9]+)\ conf_name=(.*)@(.*)\ meeting_id=.*\]\ EndpointConnectionStatusMonitor\.start.*:\ Starting\ connection\ status\ monitor ]]; then
+
+                    event_time="${BASH_REMATCH[1]}"
                     loglevel="${BASH_REMATCH[2]}"
                     conference_id="${BASH_REMATCH[3]}"
                     conference_name="${BASH_REMATCH[4]}"
                     conference_host="${BASH_REMATCH[5]}"
-                    # we check if the conference exists, just in case
-                    db_get=$(printf "$db_get_conference" "$conference_id")
-                    existing_conference=$(db_query "$db_get")
-                    # new conference
-                    if [ -z "$existing_conference" ]; then
-                        db_insert=$(printf "$db_insert_conferences_template" "$jitsi_component" "$conference_id" "$conference_name" "$conference_host")
-                        db_query "$db_insert"
-                    # if for any reason it's an existing conference, update details
-                    else
-                        ## conference exists add info
-                    fi
+
+                    # always check or add the conference
+                    db_conference_check "$jitsi_component" "$conference_id" "$conference_name" "$conference_host"
+
+                    # add the event details
+                    db_insert=$(printf "$db_insert_conference_event_template" "$jitsi_component" "$loglevel" "$event_time" "$conference_id" "conference created" "")
+                    db_query "$db_insert"
 
                 # locate participant joining event
-                elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=${conference_id}\ .*epId=([a-zA-Z0-9-]+)\ stats_id=([a-zA-Z0-9-]+)\ .*Starting\ the\ Agent\ without\ remote\ candidates ]]; then
+                elif [[ "$line" =~ ${jitsi_component}\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=([a-zA-Z0-9]+)\ .*epId=([a-zA-Z0-9-]+)\ stats_id=([a-zA-Z0-9-]+)\ .*Starting\ the\ Agent\ without\ remote\ candidates ]]; then
                     event_time="${BASH_REMATCH[1]}"
-                    event_type='participant joining'
-                    participant_endpoint_id="${BASH_REMATCH[2]}"
-                    participant_stats_id="${BASH_REMATCH[3]}"
-                    if [[ -n "$conference_id" ]]; then
-                        db_insert=$(printf "$db_insert_participant_template" "$jitsi_component" "$conference_id" "$event_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "")
-                        db_query "$db_insert"
-                    fi
+                    loglevel="${BASH_REMATCH[2]}"
+                    conference_id="${BASH_REMATCH[3]}"
+                    participant_endpoint_id="${BASH_REMATCH[4]}"
+                    participant_stats_id="${BASH_REMATCH[5]}"
+
+                    # always check or add the participant
+                    db_participant_check "$jitsi_component" "$participant_endpoint_id" "$conference_id"
+
+                    # add the event details
+                    db_insert=$(printf "$db_insert_participant_event_template" "$jitsi_component" "$loglevel" "$event_time" "$participant_endpoint_id" "participant joining" "$conference_id")
+                    db_query "$db_insert"
+                    db_insert=$(printf "$db_insert_participant_event_template" "$jitsi_component" "$loglevel" "$event_time" "$participant_endpoint_id" "stats_id" "$participant_stats_id")
+                    db_query "$db_insert"
 
                 # locate participant pair selection event
-                elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=${conference_id}\ .*epId=${participant_endpoint_id}\ stats_id=${participant_stats_id}\ .*Selected\ pair\ for\ stream\ .*([0-9.]+):10000/udp/srflx\ \-\>\ ([0-9.]+):[0-9]+/udp/prflx ]]; then
+                elif [[ "$line" =~ ${jitsi_component}\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=${conference_id}\ .*epId=${participant_endpoint_id}\ stats_id=${participant_stats_id}\ .*Selected\ pair\ for\ stream\ .*([0-9.]+):10000/udp/srflx\ \-\>\ ([0-9.]+):[0-9]+/udp/prflx ]]; then
                     event_time="${BASH_REMATCH[1]}"
-                    event_type='pair selected'
-                    participant_IP="${BASH_REMATCH[3]}"
-                    if [[ -n "$conference_id" ]]; then
-                        db_insert=$(printf "$db_insert_participant_template" "$jitsi_component" "$conference_id" "$event_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "$participant_IP")
-                        db_query "$db_insert"
-                    fi
+                    loglevel="${BASH_REMATCH[2]}"
+                    participant_IP="${BASH_REMATCH[4]}"
+
+                    # always check or add the participant
+                    db_participant_check "$jitsi_component" "$participant_endpoint_id" "$conference_id"
+
+                    # add the event details
+                    db_insert=$(printf "$db_insert_participant_event_template" "$jitsi_component" "$loglevel" "$event_time" "$participant_endpoint_id" "pair selected" "$participant_IP")
+                    db_query "$db_insert"
 
                 # locate participant leaving event
-                elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=${conference_id}\ .*epId=${participant_endpoint_id}\ stats_id=${participant_stats_id}\]\ Endpoint\.expire.*:\ Expired\. ]]; then
+                elif [[ "$line" =~ ${jitsi_component}\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=${conference_id}\ .*epId=${participant_endpoint_id}\ stats_id=${participant_stats_id}\]\ Endpoint\.expire.*:\ Expired\. ]]; then
                     event_time="${BASH_REMATCH[1]}"
-                    event_type='participant leaving'
-                    if [[ -n "$conference_id" ]]; then
-                        db_insert=$(printf "$db_insert_participant_template" "$jitsi_component" "$conference_id" "$event_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "$participant_IP")
-                        db_query "$db_insert"
-                        # the participant left, forget about him
-                        unset "$event_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "$participant_IP"
-                    fi
+                    loglevel="${BASH_REMATCH[2]}"
 
-                # locate the corresponding conference ending event
-                elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=([a-zA-Z0-9]+)\ .*conf_name=([^ ]+)@.*\]\ Conference\.expire ]]; then
-                    end_time="${BASH_REMATCH[1]}"
-                    conference_id="${BASH_REMATCH[2]}"
-                    conference_name="${BASH_REMATCH[3]}"
-                    start_time="${start_times["$conference_id"]}"
+                    # always check or add the participant
+                    db_participant_check "$jitsi_component" "$participant_endpoint_id" "$conference_id"
 
-                    if [[ -n "$start_time" ]]; then
-                        db_insert=$(printf "$db_insert_conference_template" "$jitsi_component" "$conference_name" "$conference_id" "$start_time" "$end_time")
-                        db_query "$db_insert"
-                        # the conference ended, forget about it
-                        unset "start_times[$conference_id]" "$start_time" "$end_time" "$conference_id" "$conference_name"
-                    fi
+                    # add the event details
+                    db_insert=$(printf "$db_insert_participant_event_template" "$jitsi_component" "$loglevel" "$event_time" "$participant_endpoint_id" "participant leaving" "$conference_id")
+                    db_query "$db_insert"
+
+                    # the participant left, forget about him
+                    unset "$participant_endpoint_id" "$participant_stats_id" "$participant_IP"
+
+                # locate the conference ending event
+                elif [[ "$line" =~ ${jitsi_component}\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=([a-zA-Z0-9]+)\ .*\ Conference\.expire ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    loglevel="${BASH_REMATCH[2]}"
+                    conference_id="${BASH_REMATCH[3]}"
+
+                    # always check or add the conference
+                    db_conference_check "$jitsi_component" "$conference_id" "$conference_name" "$conference_host"
+
+                    db_insert=$(printf "$db_insert_conference_event_template" "$jitsi_component" "$loglevel" "$event_time" "$conference_id" "conference expired" "")
+                    db_query "$db_insert"
+
+                    # the conference ended, forget about it
+                    unset "$conference_id" "$conference_name"
+
                 fi
                 ;;
 
             JICOFO)
                 # locate conference starting event
-                if [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=([^ ]+)@.*\]\ JitsiMeetConferenceImpl\.joinTheRoom ]]; then
-                    timestamp="${BASH_REMATCH[1]}"
-                    conference_name="${BASH_REMATCH[2]}"
-                    start_times["$conference_name"]="$timestamp"
+                if [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[room=([^ ]+)@(.*)\]\ JitsiMeetConferenceImpl\.joinTheRoom ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    loglevel="${BASH_REMATCH[2]}"
+                    conference_id="0" # FIXME here we still don't have the jicofo room ID
+                    conference_name="${BASH_REMATCH[3]}"
+                    conference_host="${BASH_REMATCH[4]}"
+
+                    # always check or add the conference
+                    db_conference_check "$jitsi_component" "$conference_id" "$conference_name" "$conference_host"
+
+                    # add the event details
+                    db_insert=$(printf "$db_insert_conference_event_template" "$jitsi_component" "$loglevel" "$event_time" "$conference_id" "conference created" "")
+                    db_query "$db_insert"
 
                 # locate participant joining event
-                elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+)\]\ .*\.onMemberJoined.*:\ Member\ joined:([a-zA-Z0-9]+)\ stats-id=([a-zA-Z0-9-]+) ]]; then
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+)\]\ .*\.onMemberJoined.*:\ Member\ joined:([a-zA-Z0-9]+)\ stats-id=([a-zA-Z0-9-]+) ]]; then
                     event_time="${BASH_REMATCH[1]}"
-                    event_type='participant joining'
-                    conference_name="${BASH_REMATCH[2]}"
-                    conference_id="${BASH_REMATCH[3]}"
-                    participant_endpoint_id="${BASH_REMATCH[4]}"
-                    participant_stats_id="${BASH_REMATCH[5]}"
-                    if [[ -n "$conference_id" ]]; then
-                        db_insert=$(printf "$db_insert_participant_template" "$jitsi_component" "$conference_id" "$event_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "")
-                        db_query "$db_insert"
-                    fi
+                    loglevel="${BASH_REMATCH[2]}"
+                    conference_name="${BASH_REMATCH[3]}"
+                    conference_id="${BASH_REMATCH[4]}"
+                    participant_endpoint_id="${BASH_REMATCH[5]}"
+                    participant_stats_id="${BASH_REMATCH[6]}"
+
+                    # now we have conf ID update conference
+                    db_update=$(printf "$db_update_conference_id_template" "$conference_id" "$conference_name" "$jitsi_component")
+                    db_query "$db_update"
+## FIXME no way to match conference_id here to update it
+#                    db_update=$(printf "$db_update_conference_events_id_template" "$conference_id" "$conference_name" "$jitsi_component")
+#                    db_query "$db_update"
+
+                    # always check or add the participant
+                    db_participant_check "$jitsi_component" "$participant_endpoint_id" "$conference_id"
+
+                    # add the event details
+                    db_insert=$(printf "$db_insert_participant_event_template" "$jitsi_component" "$loglevel" "$event_time" "$participant_endpoint_id" "participant joining" "$conference_id")
+                    db_query "$db_insert"
+                    db_insert=$(printf "$db_insert_participant_event_template" "$jitsi_component" "$loglevel" "$event_time" "$participant_endpoint_id" "stats_id" "$participant_stats_id")
+                    db_query "$db_insert"
 
                 # locate the bridge selection event(s)
-                elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*BridgeSelectionStrategy.select#.*:\ Selected.*\[jid=[a-z]@.*\/(.*),\  ]]; then
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+)\]\ ColibriV2SessionManager.allocate.*:\ Selected\ (.*),\ session\ exists:\ true  ]]; then
                     event_time="${BASH_REMATCH[1]}"
-                    event_type='bridge selected'
-## FIXME, no data                    conference_name="${BASH_REMATCH[2]}"
-##                    conference_id="${BASH_REMATCH[3]}"
-##                    participant_endpoint_id="${BASH_REMATCH[4]}"
-##                    participant_stats_id="${BASH_REMATCH[5]}"
-                    if [[ -n "$conference_id" ]]; then
-                        db_insert=$(printf "$db_insert_conference_template" "$jitsi_component" "$conference_name" "$conference_id" "$event_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "")
-                        db_query "$db_insert"
-                    fi
+                    loglevel="${BASH_REMATCH[2]}"
+#                    conference_name="${BASH_REMATCH[3]}"
+                    conference_id="${BASH_REMATCH[4]}"
+                    bridge_selected="${BASH_REMATCH[5]}"
+
+                    # add the event details
+                    db_insert=$(printf "$db_insert_conference_event_template" "$jitsi_component" "$loglevel" "$event_time" "$conference_id" "bridge selected" "$bridge_selected")
+                    db_query "$db_insert"
 
                 # locate participant leaving event
-                elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=${conference_name}@.*\ meeting_id=${conference_id}\]\ .*\.removeParticipant#.*:\ Removing\ ([a-zA-Z0-9]+) ]]; then
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+)\]\ .*\.removeParticipant#.*:\ Removing\ ([a-zA-Z0-9]+) ]]; then
                     event_time="${BASH_REMATCH[1]}"
-                    event_type='participant leaving'
-                    participant_endpoint_id="${BASH_REMATCH[2]}"
-                    participant_stats_id="" # FIXME
-                    if [[ -n "$conference_id" ]]; then
-                        db_insert=$(printf "$db_insert_participant_template" "$jitsi_component" "$conference_id" "$event_time" "$event_type" "$participant_endpoint_id" "$participant_stats_id" "")
-                        db_query "$db_insert"
-                    fi
+                    loglevel="${BASH_REMATCH[2]}"
+#                    conference_name="${BASH_REMATCH[3]}"
+                    conference_id="${BASH_REMATCH[4]}"
+                    participant_endpoint_id="${BASH_REMATCH[5]}"
+
+                    # always check or add the participant
+                    db_participant_check "$jitsi_component" "$participant_endpoint_id" "$conference_id"
+
+                    # add the event details
+                    db_insert=$(printf "$db_insert_participant_event_template" "$jitsi_component" "$loglevel" "$event_time" "$participant_endpoint_id" "participant leaving" "$conference_id")
+                    db_query "$db_insert"
 
                 # locate the corresponding conference ending event
-                elif [[ "$line" =~ ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+)\]\ JitsiMeetConferenceImpl\.stop ]]; then
-                    end_time="${BASH_REMATCH[1]}"
-                    conference_name="${BASH_REMATCH[2]}"
-                    conference_id="${BASH_REMATCH[3]}"
-                    start_time="${start_times["$conference_name"]}"
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+)\]\ JitsiMeetConferenceImpl\.stop ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    loglevel="${BASH_REMATCH[2]}"
+#                    conference_name="${BASH_REMATCH[3]}"
+                    conference_id="${BASH_REMATCH[4]}"
 
-                    if [[ -n "$start_time" ]]; then
-                        db_insert=$(printf "$db_insert_conference_template" "$jitsi_component" "$conference_name" "$conference_id" "$start_time" "$end_time")
-                        db_query "$db_insert"
-                        unset "start_times[$conference_name]"
-                    fi
+                    # always check or add the conference
+                    db_conference_check "$jitsi_component" "$conference_id" "$conference_name" "$conference_host"
+
+                    # add the event details
+                    db_insert=$(printf "$db_insert_conference_event_template" "$jitsi_component" "$loglevel" "$event_time" "$conference_id" "conference stopped" "")
+                    db_query "$db_insert"
+
                 fi
                 ;;
 
