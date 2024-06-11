@@ -44,6 +44,63 @@ db_stats_conferences_all_template="SELECT * FROM conferences;"
 db_stats_conferences_name_template="SELECT * FROM conferences WHERE conference_name='%s';"
 db_stats_conferences_id_template="SELECT * FROM conferences WHERE conference_id='%s';"
 
+db_stats_conference_events_template="SELECT * FROM conference_events WHERE conference_id='%s';"
+db_stats_participant_events_template="SELECT * FROM participant_events WHERE event_param='%s';"
+
+db_stats_conference_by_id_template="
+SELECT DISTINCT
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    COALESCE(ce.time, pe.time) AS event_time,
+    ce.loglevel AS conference_loglevel,
+    ce.conference_event,
+    ce.conference_param,
+    p.endpoint_id,
+    pe.time AS participant_time,
+    pe.loglevel AS participant_loglevel,
+    pe.event_type,
+    pe.event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+LEFT JOIN
+    participants p ON c.conference_id = p.conference_id
+LEFT JOIN
+    participant_events pe ON p.endpoint_id = pe.participant_id
+WHERE
+    c.conference_id = '%s'
+ORDER BY
+    event_time;"
+
+db_stats_conference_by_name_template="
+SELECT DISTINCT
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    COALESCE(ce.time, pe.time) AS event_time,
+    ce.loglevel AS conference_loglevel,
+    ce.conference_event,
+    ce.conference_param,
+    p.endpoint_id,
+    pe.time AS participant_time,
+    pe.loglevel AS participant_loglevel,
+    pe.event_type,
+    pe.event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+LEFT JOIN
+    participants p ON c.conference_id = p.conference_id
+LEFT JOIN
+    participant_events pe ON p.endpoint_id = pe.participant_id
+WHERE
+    c.conference_name = '%s'
+ORDER BY
+    event_time;"
+
 db_stats_conferences_time_template="SELECT * FROM conferences WHERE start >= '%s' AND end <= '%s';"
 
 db_stats_participants_all_template="SELECT * FROM participants;"
@@ -231,13 +288,64 @@ done
 case "$cmd" in
 
     --conference)
+        # the argument to "--conference" can be either ID or name
         if [[ -n "$conference_arg" ]]; then
+
             db_stats_conferences_id=$(printf "$db_stats_conferences_id_template" "$conference_arg")
-            db_query "$db_stats_conferences_id"
+            stats_conferences_id=$(db_query "$db_stats_conferences_id")
+
             db_stats_conferences_name=$(printf "$db_stats_conferences_name_template" "$conference_arg")
-            db_query "$db_stats_conferences_name"
+            stats_conferences_name=$(db_query "$db_stats_conferences_name")
+
+            # we check if the argument to "--conference" is a conference ID
+            # conference ID is unique, so we show that conference
+            if [[ -n "$stats_conferences_id" ]]; then
+                db_stats_conference=$(printf "$db_stats_conference_by_id_template" "$conference_arg")
+                mapfile -t stats_conference_array < <(db_query "$db_stats_conference")
+
+                current_conference=""
+                for row in "${stats_conference_array[@]}"; do
+                    IFS='|' read -r conference_id conference_name conference_host conference_time loglevel conference_event conference_param endpoint_id participant_time loglevel event_type event_param <<< "$row"
+
+                    if [[ -z "$current_conference" ]]; then
+                        current_conference="$conference_name"
+                        echo "$conference_time | $conference_id | $conference_name | $conference_host | $loglevel | Conference created"
+                    fi
+
+                    if [[ -n "$conference_event" ]]; then
+                        echo "$participant_time | $conference_id | $conference_name | $conference_host | $loglevel | $endpoint_id | $event_type | $event_param"
+                    fi
+                done
+                echo "$conference_time | $conference_id | $conference_name | $conference_host | $loglevel | Conference Ended"
+
+            # then we check if the argument to "--conference" is a conference name
+            # if so, we show all matching conferences (conference names are not unique)
+            elif [[ -n "$stats_conferences_name" ]]; then
+                db_stats_conference=$(printf "$db_stats_conference_by_name_template" "$conference_arg")
+                mapfile -t stats_conference_array < <(db_query "$db_stats_conference")
+
+                current_conference=""
+                for row in "${stats_conference_array[@]}"; do
+                    IFS='|' read -r conference_id conference_name conference_host conference_time loglevel conference_event conference_param endpoint_id participant_time loglevel event_type event_param <<< "$row"
+
+                    if [[ -z "$current_conference" ]]; then
+                        current_conference="$conference_name"
+                        echo "$conference_time | $conference_id | $conference_name | $conference_host | $loglevel | Conference created"
+                    fi
+
+                    if [[ -n "$conference_event" ]]; then
+                        echo "$participant_time | $conference_id | $conference_name | $conference_host | $loglevel | $endpoint_id | $event_type | $event_param"
+                    fi
+                done
+                echo "$conference_time | $conference_id | $conference_name | $conference_host | $loglevel | Conference Ended"
+
+            # nothing found for neither conference ID or name
+            else
+                echo "No match found for \"$conference_arg\""
+            fi
             exit 0
         else
+            # if no argument is given, we show all the conferences
             db_stats_conferences_all=$(printf "$db_stats_conferences_all_template")
             db_query "$db_stats_conferences_all"
             exit 0
