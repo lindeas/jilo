@@ -157,7 +157,7 @@ check_requirements
 
 # normalize DB schemas for Sqlite3 and MySQL/MariaDB in order to compare them when needed
 db_normalize_schema() {
-    echo "$1" | tr -d '\n' | tr -s ' ' | tr ',' '\n' | sort
+    echo "$1" | tr -d '\n' | tr -s ' ' | tr ',' '\n' | tr -d ';' | sort
 }
 
 # execute a query and return the result
@@ -524,7 +524,8 @@ case "$cmd" in
             fi
 
             # get current and expected db schemas in comparable format
-            current_db_schema=$(sqlite3 "$DB" .schema)
+            #current_db_schema=$(sqlite3 "$DB" .schema)
+            current_db_schema=$(sqlite3 "$DB" "SELECT sql FROM sqlite_master WHERE type='table' AND name!='sqlite_sequence';")
             current_db_schema_normalized=$(db_normalize_schema "$current_db_schema")
             expected_db_schema_normalized=$(db_normalize_schema "$db_create")
 
