@@ -24,6 +24,9 @@ DEFAULT_MYSQL_USER="jilo"
 DEFAULT_MYSQL_PASS="jilopass"
 DEFAULT_MYSQL_DB="jilo_db"
 
+DEFAULT_NORMAL_TEXT="\033[0m"
+DEFAULT_IMPORTANT_TEXT="\033[1m"
+
 # Load configurations from the config file if it exists
 if [[ -f "$CONFIG_FILE" ]]; then
     source "$CONFIG_FILE"
@@ -37,9 +40,13 @@ MYSQL_USER=${MYSQL_USER:-$DEFAULT_MYSQL_USER}
 MYSQL_PASS=${MYSQL_PASS:-$DEFAULT_MYSQL_PASS}
 MYSQL_DB=${MYSQL_DB:-$DEFAULT_MYSQL_DB}
 
-###
+NORMAL_TEXT=${NORMAL_TEXT:-$DEFAULT_NORMAL_TEXT}
+IMPORTANT_TEXT=${IMPORTANT_TEXT:-$DEFAULT_IMPORTANT_TEXT}
 
-# DB queries
+### DB queries
+
+## conference related
+
 db_conferences_all_formatted_template="
 SELECT
     c.jitsi_component,
@@ -59,17 +66,10 @@ JOIN (
         conference_name
 ) AS name_counts ON c.conference_name = name_counts.conference_name
 ORDER BY
-    c.id;
-"
-
+    c.id;"
 db_conferences_id_template="SELECT * FROM conferences WHERE conference_id='%s';"
 db_conferences_name_template="SELECT * FROM conferences WHERE conference_name='%s';"
-
-db_participants_id_template="SELECT * FROM participants WHERE endpoint_id='%s';"
-
 db_conference_events_template="SELECT * FROM conference_events WHERE conference_id='%s';"
-db_participant_events_template="SELECT * FROM participant_events WHERE participant_id='%s';"
-
 db_conference_by_id_template="
 SELECT
     pe.time,
@@ -110,9 +110,7 @@ WHERE
     c.conference_id = '%s'
 
 ORDER BY
-    pe.time;
-"
-
+    pe.time;"
 db_conference_by_name_template="
 SELECT
     pe.time,
@@ -153,24 +151,196 @@ WHERE
     c.conference_name = '%s'
 
 ORDER BY
-    pe.time;
-"
+    pe.time;"
 
+## participant related
+
+db_participants_all_template="SELECT jitsi_component, endpoint_id, conference_id FROM participants ORDER BY id;"
+db_participants_id_template="SELECT * FROM participants WHERE endpoint_id='%s';"
+db_participant_events_template="SELECT * FROM participant_events WHERE participant_id='%s';"
+
+db_participants_endpoint_template="SELECT * FROM participants WHERE endpoint_id='%s';"
+db_participants_conference_template="SELECT * FROM participants WHERE conference_id='%s';"
+db_participants_statsid_template="SELECT * FROM participant_events WHERE event_type = 'stats_id' AND event_param LIKE '%%%s%%';"
+db_participants_ip_template="SELECT * FROM participant_events WHERE event_type = 'pair selected' AND event_param='%s';"
+
+db_conference_by_participant_id_template="
+SELECT
+    pe.time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    pe.loglevel,
+    pe.event_type,
+    p.endpoint_id AS participant_id,
+    pe.event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+LEFT JOIN
+    participants p ON c.conference_id = p.conference_id
+LEFT JOIN
+    participant_events pe ON p.endpoint_id = pe.participant_id
+WHERE
+    p.endpoint_id = '%s'
+
+UNION
+
+SELECT
+    ce.time AS event_time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    ce.loglevel,
+    ce.conference_event AS event_type,
+    NULL AS participant_id,
+    ce.conference_param AS event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+WHERE
+    participant_id = '%s'
+
+ORDER BY
+    pe.time;"
+
+db_participant_by_conference_id_template="
+SELECT
+    pe.time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    pe.loglevel,
+    pe.event_type,
+    p.endpoint_id AS participant_id,
+    pe.event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+LEFT JOIN
+    participants p ON c.conference_id = p.conference_id
+LEFT JOIN
+    participant_events pe ON p.endpoint_id = pe.participant_id
+WHERE
+    pe.event_param = '%s'
+
+UNION
+
+SELECT
+    ce.time AS event_time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    ce.loglevel,
+    ce.conference_event AS event_type,
+    NULL AS participant_id,
+    ce.conference_param AS event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+WHERE
+    event_param = '%s'
+
+ORDER BY
+    pe.time;"
+
+db_participant_by_stats_id_template="
+SELECT
+    pe.time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    pe.loglevel,
+    pe.event_type,
+    p.endpoint_id AS participant_id,
+    pe.event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+LEFT JOIN
+    participants p ON c.conference_id = p.conference_id
+LEFT JOIN
+    participant_events pe ON p.endpoint_id = pe.participant_id
+WHERE
+    pe.event_type = 'stats_id' AND pe.event_param LIKE '%%%s%%'
+
+UNION
+
+SELECT
+    ce.time AS event_time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    ce.loglevel,
+    ce.conference_event AS event_type,
+    NULL AS participant_id,
+    ce.conference_param AS event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+WHERE
+    event_type = 'stats_id' AND event_param LIKE '%%%s%%'
+
+ORDER BY
+    pe.time;"
+
+db_participant_by_ip_template="
+SELECT
+    pe.time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    pe.loglevel,
+    pe.event_type,
+    p.endpoint_id AS participant_id,
+    pe.event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+LEFT JOIN
+    participants p ON c.conference_id = p.conference_id
+LEFT JOIN
+    participant_events pe ON p.endpoint_id = pe.participant_id
+WHERE
+    pe.event_type = 'pair selected' AND pe.event_param = '%s'
+
+UNION
+
+SELECT
+    ce.time AS event_time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    ce.loglevel,
+    ce.conference_event AS event_type,
+    NULL AS participant_id,
+    ce.conference_param AS event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+WHERE
+    event_type = 'pair selected' AND event_param = '%s'
+
+ORDER BY
+    pe.time;"
+
+## time period related
 #db_conferences_time_template="SELECT * FROM conferences WHERE start >= '%s' AND end <= '%s';"
-#
-#db_participants_all_template="SELECT * FROM participants;"
-#db_participants_conference_template="SELECT * FROM participants WHERE conference_id='%s';"
-#db_participants_event_template="SELECT * FROM participants WHERE event_type LIKE '%%%s%%';"
-#db_participants_endpoint_template="SELECT * FROM participants WHERE endpoint_id='%s';"
-#db_participants_statsid_template="SELECT * FROM participants WHERE stats_id LIKE '%%%s%%';"
-#db_participants_ip_template="SELECT * FROM participants WHERE participant_ip='%s';"
 
 
 help="Usage:
     $0 [OPTION]
     Options:
         --conference|-c [conference ID or name] - show specific conference(s), all of empty
-        --participant|-p [conference ID, participant IP, or word from the event type or stats ID] - show specific participant(s), all if empty
+        --participant|-p [participant endpoint ID, conference ID, participant IP, or participant stats ID] - show specific participant(s), all if empty
         --time|-t - show stats for a time interval"
 
 ###
@@ -362,7 +532,7 @@ case "$cmd" in
                 # prepare the formatted rows
                 for row in "${conference_array[@]}"; do
                     IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
-                    output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$event_param\n"
+                    output+="$time\t$IMPORTANT_TEXT$conference_id$NORMAL_TEXT\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$event_param\n"
                 done
                 # output
                 echo -e "$output" | column -t -s $'\t'
@@ -378,7 +548,7 @@ case "$cmd" in
                 # prepare the formatted rows
                 for row in "${conference_array[@]}"; do
                     IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
-                    output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$event_param\n"
+                    output+="$time\t$conference_id\t$IMPORTANT_TEXT$conference_name$NORMAL_TEXT\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$event_param\n"
                 done
                 # output
                 echo -e "$output" | column -t -s $'\t'
@@ -405,21 +575,90 @@ case "$cmd" in
         ;;
 
     --participant)
+        # the argument to "--participant" can be endpointID, conferenceID, startsID, IP address
+        # we check for all ot them and show the matches
         if [[ -n "$participant_arg" ]]; then
-            db_participants_conference=$(printf "$db_participants_conference_template" "$participant_arg")
-            db_query "$db_participants_conference"
-            db_participants_event=$(printf "$db_participants_event_template" "$participant_arg")
-            db_query "$db_participants_event"
             db_participants_endpoint=$(printf "$db_participants_endpoint_template" "$participant_arg")
-            db_query "$db_participants_endpoint"
+            participants_endpoint=$(db_query "$db_participants_endpoint")
+
+            db_participants_conference=$(printf "$db_participants_conference_template" "$participant_arg")
+            participants_conference=$(db_query "$db_participants_conference")
+
             db_participants_statsid=$(printf "$db_participants_statsid_template" "$participant_arg")
-            db_query "$db_participants_statsid"
+            participants_statsid=$(db_query "$db_participants_statsid")
+
             db_participants_ip=$(printf "$db_participants_ip_template" "$participant_arg")
-            db_query "$db_participants_ip"
+            participants_ip=$(db_query "$db_participants_ip")
+
+            if [[ -n $participants_endpoint ]]; then
+                db_participant=$(printf "$db_conference_by_participant_id_template" "$participant_arg" "$participant_arg")
+                mapfile -t conference_array < <(db_query "$db_participant")
+                # prepare the header
+                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+                # prepare the formatted rows
+                for row in "${conference_array[@]}"; do
+                    IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
+                    output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$IMPORTANT_TEXT$participant_id$NORMAL_TEXT\t$event_type\t$event_param\n"
+                done
+                # output
+                echo -e "$output" | column -t -s $'\t'
+            fi
+
+            if [[ -n $participants_conference ]]; then
+                db_participant=$(printf "$db_participant_by_conference_id_template" "$participant_arg" "$participant_arg")
+                mapfile -t conference_array < <(db_query "$db_participant")
+                # prepare the header
+                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+                # prepare the formatted rows
+                for row in "${conference_array[@]}"; do
+                    IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
+                    output+="$time\t$IMPORTANT_TEXT$conference_id$NORMAL_TEXT\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$event_param\n"
+                done
+                # output
+                echo -e "$output" | column -t -s $'\t'
+            fi
+
+            if [[ -n $participants_statsid ]]; then
+                db_participant=$(printf "$db_participant_by_stats_id_template" "$participant_arg" "$participant_arg")
+                mapfile -t conference_array < <(db_query "$db_participant")
+                # prepare the header
+                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+                # prepare the formatted rows
+                for row in "${conference_array[@]}"; do
+                    IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
+                    output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$IMPORTANT_TEXT$event_param$NORMAL_TEXT\n"
+                done
+                # output
+                echo -e "$output" | column -t -s $'\t'
+            fi
+
+            if [[ -n $participants_ip ]]; then
+                db_participant=$(printf "$db_participant_by_ip_template" "$participant_arg" "$participant_arg")
+                mapfile -t conference_array < <(db_query "$db_participant")
+                # prepare the header
+                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+                # prepare the formatted rows
+                for row in "${conference_array[@]}"; do
+                    IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
+                    output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$IMPORTANT_TEXT$event_param$NORMAL_TEXT\n"
+                done
+                # output
+                echo -e "$output" | column -t -s $'\t'
+            fi
+
             exit 0
         else
             db_participants_all=$(printf "$db_participants_all_template" )
-            db_query "$db_participants_all"
+            mapfile -t participant_array < <(db_query "$db_participants_all")
+            # prepare the header
+            output="component\tparticipant ID\tconference ID\n"
+            # prepare the formatted rows
+            for row in "${participant_array[@]}"; do
+                IFS='|' read -r jitsi_component endpoint_id conference_id <<< "$row"
+                output+="$jitsi_component\t$endpoint_id\t$conference_id\n"
+            done
+            # output
+            echo -e "$output" | column -t -s $'\t'
             exit 0
         fi
         ;;
