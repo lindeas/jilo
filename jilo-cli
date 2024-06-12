@@ -333,7 +333,49 @@ ORDER BY
     pe.time;"
 
 ## time period related
-#db_conferences_time_template="SELECT * FROM conferences WHERE start >= '%s' AND end <= '%s';"
+
+db_events_by_period_template="
+SELECT
+    pe.time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    pe.loglevel,
+    pe.event_type,
+    p.endpoint_id AS participant_id,
+    pe.event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+LEFT JOIN
+    participants p ON c.conference_id = p.conference_id
+LEFT JOIN
+    participant_events pe ON p.endpoint_id = pe.participant_id
+WHERE
+    pe.time >= '%s' AND pe.time <= '%s'
+
+UNION
+
+SELECT
+    ce.time AS event_time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    ce.loglevel,
+    ce.conference_event AS event_type,
+    NULL AS participant_id,
+    ce.conference_param AS event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+WHERE
+    event_time >= '%s' AND event_time <= '%s'
+
+ORDER BY
+    pe.time;"
+
 
 
 help="Usage:
@@ -665,8 +707,18 @@ case "$cmd" in
 
     --time)
         if [[ "$time_range_specified" == true ]]; then
-            db_conferences_time=$(printf "$db_conferences_time_template" "$from_time" "$until_time")
-            db_query "$db_conferences_time"
+            echo "Events in the period $from_time - $until_time"
+            db_events_time=$(printf "$db_events_by_period_template" "$from_time" "$until_time" "$from_time" "$until_time")
+            mapfile -t events_array < <(db_query "$db_events_time")
+            # prepare the header
+            output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+            # prepare the formatted rows
+            for row in "${events_array[@]}"; do
+                IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
+                output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$event_type\t$participant_id\t$event_param\n"
+            done
+            # output
+            echo -e "$output" | column -t -s $'\t'
             exit 0
         fi
         ;;
