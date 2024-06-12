@@ -7,6 +7,9 @@
 # Command line interface (jilo-cli)
 ###
 
+VERSION="0.1"
+RELEASE_DATE="2024-06-12"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" #"
 
 ### Configuration file (overrides default configs)
@@ -383,7 +386,15 @@ help="Usage:
     Options:
         --conference|-c [conference ID or name] - show specific conference(s), all of empty
         --participant|-p [participant endpoint ID, conference ID, participant IP, or participant stats ID] - show specific participant(s), all if empty
-        --time|-t - show stats for a time interval"
+        --time|-t - show stats for a time interval
+        --help|-h - show this help message
+        --version|-V - show version"
+
+version="JILO Jitsi Logs Observer command line client
+    jilo-cli_${VERSION}_${RELEASE_DATE}
+    version $VERSION
+    released on $RELEASE_DATE"
+
 
 ###
 
@@ -542,6 +553,10 @@ while  [[ $# -gt 0 ]]; do
             ;;
         -h | --help)
             echo -e "$help"
+            exit 0
+            ;;
+        -V | --version)
+            echo -e "$version"
             exit 0
             ;;
         *)
