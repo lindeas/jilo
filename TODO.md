@@ -12,9 +12,11 @@
     - issues
     - errors
     - ~~info about JVBs used~~
+* Web interface
+    - initial version
 ---
 * FIXMEs:
     - ~~long commandline options work ok in jilo-cli, but not in jilo - update them as in cli~~
     - ~~finish SQL refactoring, move to separate tables for conferences and participants, linked by id~~
-    - update jilo-cli to work with new SQL
-    - fix sqlite and mysql schemas differences with the new SQL
+    - ~~update jilo-cli to work with new SQL~~
+    - ~~fix sqlite and mysql schemas differences with the new SQL~~
