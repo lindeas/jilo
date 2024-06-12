@@ -159,8 +159,8 @@ help="Usage:
 # First we check for requirements
 check_requirements() {
     # required programs, anything non-bash - edit as needed
-    # deb packages - sqlite3
-    local required_programs=("sqlite3")
+    # deb packages - sqlite3, util-linux (column)
+    local required_programs=("sqlite3" "column")
     local requirements_missing=''
     for program in "${required_programs[@]}"; do
         if ! command -v "$program" &> /dev/null; then
@@ -339,7 +339,7 @@ case "$cmd" in
                 db_conference=$(printf "$db_conference_by_id_template" "$conference_arg" "$conference_arg")
                 mapfile -t conference_array < <(db_query "$db_conference")
                 # prepare the header
-                output="time\tconf ID\tconf name\tconf host\tloglevel\tparticipant ID\tevent\tparameter\n"
+                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
                 # prepare the formatted rows
                 for row in "${conference_array[@]}"; do
                     IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
