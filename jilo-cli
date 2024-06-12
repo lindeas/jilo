@@ -40,13 +40,32 @@ MYSQL_DB=${MYSQL_DB:-$DEFAULT_MYSQL_DB}
 ###
 
 # DB queries
-db_conferences_all_template="SELECT * FROM conferences;"
+db_conferences_all_formatted_template="
+SELECT
+    c.jitsi_component,
+    c.conference_id,
+    c.conference_name,
+    name_counts.name_count,
+    c.conference_host
+FROM
+    conferences c
+JOIN (
+    SELECT
+        conference_name,
+        COUNT(*) AS name_count
+    FROM
+        conferences
+    GROUP BY
+        conference_name
+) AS name_counts ON c.conference_name = name_counts.conference_name
+ORDER BY
+    c.id;
+"
 
 db_conferences_id_template="SELECT * FROM conferences WHERE conference_id='%s';"
 db_conferences_name_template="SELECT * FROM conferences WHERE conference_name='%s';"
 
 db_participants_id_template="SELECT * FROM participants WHERE endpoint_id='%s';"
-#db_participants_
 
 db_conference_events_template="SELECT * FROM conference_events WHERE conference_id='%s';"
 db_participant_events_template="SELECT * FROM participant_events WHERE participant_id='%s';"
@@ -371,8 +390,16 @@ case "$cmd" in
             exit 0
         else
             # if no argument is given, we show all the conferences
-            db_conferences_all=$(printf "$db_conferences_all_template")
-            db_query "$db_conferences_all"
+            mapfile -t conference_array < <(db_query "$db_conferences_all_formatted_template")
+            # prepare the header
+            output="component\tconference ID\tconference name\tname count\tconference host\n"
+            # prepare the formatted rows
+            for row in "${conference_array[@]}"; do
+                IFS='|' read -r jitsi_component conference_id conference_name name_count conference_host <<< "$row"
+                output+="$jitsi_component\t$conference_id\t$conference_name\t$name_count\t$conference_host\n"
+            done
+            # output
+            echo -e "$output" | column -t -s $'\t'
             exit 0
         fi
         ;;
