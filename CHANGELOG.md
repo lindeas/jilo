@@ -15,6 +15,9 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Initial changelog following the keepachangelog.com format
 
+### Changed
+- Updated the way jilo-cli handles multiple options, added filtering conferences by time period
+
 ---
 
 ## 0.1 - 2024-06-12
