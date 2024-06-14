@@ -51,7 +51,7 @@ IMPORTANT_TEXT=${IMPORTANT_TEXT:-$DEFAULT_IMPORTANT_TEXT}
 ## conference related
 
 db_conferences_all_formatted_template="
-SELECT
+SELECT DISTINCT
     c.jitsi_component,
     c.conference_id,
     c.conference_name,
