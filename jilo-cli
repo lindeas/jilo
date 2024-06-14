@@ -7,8 +7,8 @@
 # Command line interface (jilo-cli)
 ###
 
-VERSION="0.1"
-RELEASE_DATE="2024-06-12"
+VERSION="0.1.1-dev"
+RELEASE_DATE="unreleased"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" #"
 
@@ -73,9 +73,7 @@ JOIN
 WHERE (ce.time >= '%s' AND ce.time <= '%s')
 ORDER BY
     c.id;"
-db_conferences_id_template="SELECT * FROM conferences WHERE conference_id='%s';"
-db_conferences_name_template="SELECT * FROM conferences WHERE conference_name='%s';"
-db_conference_events_template="SELECT * FROM conference_events WHERE conference_id='%s';"
+
 db_conference_by_id_template="
 SELECT
     pe.time,
@@ -119,6 +117,7 @@ AND (event_time >= '%s' AND event_time <= '%s')
 
 ORDER BY
     pe.time;"
+
 db_conference_by_name_template="
 SELECT
     pe.time,
@@ -165,14 +164,16 @@ ORDER BY
 
 ## participant related
 
-db_participants_all_template="SELECT jitsi_component, endpoint_id, conference_id FROM participants ORDER BY id;"
-db_participants_id_template="SELECT * FROM participants WHERE endpoint_id='%s';"
-db_participant_events_template="SELECT * FROM participant_events WHERE participant_id='%s';"
-
-db_participants_endpoint_template="SELECT * FROM participants WHERE endpoint_id='%s';"
-db_participants_conference_template="SELECT * FROM participants WHERE conference_id='%s';"
-db_participants_statsid_template="SELECT * FROM participant_events WHERE event_type = 'stats_id' AND event_param LIKE '%%%s%%';"
-db_participants_ip_template="SELECT * FROM participant_events WHERE event_type = 'pair selected' AND event_param='%s';"
+db_participants_all_template="
+SELECT DISTINCT
+    p.jitsi_component, p.endpoint_id, p.conference_id
+FROM
+    participants p
+JOIN
+    participant_events pe ON p.endpoint_id = pe.participant_id
+WHERE
+    pe.time >= '%s' AND pe.time <= '%s'
+ORDER BY p.id;"
 
 db_conference_by_participant_id_template="
 SELECT
@@ -194,6 +195,7 @@ LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
     p.endpoint_id = '%s'
+AND (pe.time >= '%s' AND pe.time <= '%s')
 
 UNION
 
@@ -212,6 +214,7 @@ LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE
     participant_id = '%s'
+AND (event_time >= '%s' AND event_time <= '%s')
 
 ORDER BY
     pe.time;"
@@ -235,7 +238,8 @@ LEFT JOIN
 LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
-    pe.event_param = '%s'
+    c.conference_id = '%s'
+AND (pe.time >= '%s' AND pe.time <= '%s')
 
 UNION
 
@@ -253,7 +257,51 @@ FROM
 LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE
-    event_param = '%s'
+    ce.conference_id = '%s'
+AND (event_time >= '%s' AND event_time <= '%s')
+
+ORDER BY
+    pe.time;"
+
+db_participant_by_conference_name_template="
+SELECT
+    pe.time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    pe.loglevel,
+    pe.event_type,
+    p.endpoint_id AS participant_id,
+    pe.event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+LEFT JOIN
+    participants p ON c.conference_id = p.conference_id
+LEFT JOIN
+    participant_events pe ON p.endpoint_id = pe.participant_id
+WHERE
+    c.conference_name LIKE '%%%s%%'
+AND (pe.time >= '%s' AND pe.time <= '%s')
+
+UNION
+
+SELECT
+    ce.time AS event_time,
+    c.conference_id,
+    c.conference_name,
+    c.conference_host,
+    ce.loglevel,
+    ce.conference_event AS event_type,
+    NULL AS participant_id,
+    ce.conference_param AS event_param
+FROM
+    conferences c
+LEFT JOIN
+    conference_events ce ON c.conference_id = ce.conference_id
+WHERE c.conference_name LIKE '%%%s%%'
+AND (event_time >= '%s' AND event_time <= '%s')
 
 ORDER BY
     pe.time;"
@@ -278,6 +326,7 @@ LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
     pe.event_type = 'stats_id' AND pe.event_param LIKE '%%%s%%'
+AND (pe.time >= '%s' AND pe.time <= '%s')
 
 UNION
 
@@ -296,6 +345,7 @@ LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE
     event_type = 'stats_id' AND event_param LIKE '%%%s%%'
+AND (event_time >= '%s' AND event_time <= '%s')
 
 ORDER BY
     pe.time;"
@@ -320,6 +370,7 @@ LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
     pe.event_type = 'pair selected' AND pe.event_param = '%s'
+AND (pe.time >= '%s' AND pe.time <= '%s')
 
 UNION
 
@@ -338,6 +389,7 @@ LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE
     event_type = 'pair selected' AND event_param = '%s'
+AND (event_time >= '%s' AND event_time <= '%s')
 
 ORDER BY
     pe.time;"
@@ -387,13 +439,14 @@ ORDER BY
     pe.time;"
 
 
-
 help="Usage:
     $0 [OPTION]
     Options:
         --conference|-c [conference ID or name] - show specific conference(s), all of empty
-        --participant|-p [participant endpoint ID, conference ID, participant IP, or participant stats ID] - show specific participant(s), all if empty
-        --time|-t - show stats for a time interval
+        --participant|-p [participant endpoint ID, conference ID, conference name, participant IP, or participant stats ID] - show specific participant(s), all if empty
+        --time|-t - show stats for a time interval; can be use separately ot together with -c or -p
+        --verbose|-v - show more details, when available
+        --silent|-s - show less details, more suitable for scripting
         --help|-h - show this help message
         --version|-V - show version"
 
@@ -401,6 +454,16 @@ version="JILO Jitsi Logs Observer command line client
     jilo-cli_${VERSION}_${RELEASE_DATE}
     version $VERSION
     released on $RELEASE_DATE"
+
+time_formats="Expected formats:
+- exact times
+    YYYY-MM-DD, YYYY-MM, YYYY
+- exact periods
+    YYYY-MM-DD:YYYY-MM-DD, YYYY-MM:YYYY-MM, YYYY:YYYY
+- from begining to given time
+    :YYYY-MM-DD, :YYYY-MM, :YYYY
+- from given time until end
+    YYYY-MM-DD:, YYYY-MM:, YYYY:"
 
 
 ###
@@ -504,15 +567,7 @@ parse_time_range() {
         until_time="9999-12-31"
 
     else
-        echo -e "Invalid time range. Expected formats:
-- exact times
-    YYYY-MM-DD, YYYY-MM, YYYY
-- exact periods
-    YYYY-MM-DD:YYYY-MM-DD, YYYY-MM:YYYY-MM, YYYY:YYYY
-- from begining to given time
-    :YYYY-MM-DD, :YYYY-MM, :YYYY
-- from given time until end
-    YYYY-MM-DD:, YYYY-MM:, YYYY:" >&2
+        echo -e "Invalid time range. $time_formats" >&2
         exit 1
     fi
 
@@ -521,7 +576,6 @@ parse_time_range() {
 
 ### commandline options
 
-cmd=""
 conference_arg=""
 conference_option=false
 participant_arg=""
@@ -531,10 +585,16 @@ until_time="9999-12-31"
 time_option=false
 time_range_specified=false
 
+# display help if no arguments
+if [[ $# -eq 0 ]]; then
+    echo -e "$help"
+    exit 0
+fi
+
+# then check all the options
 while  [[ $# -gt 0 ]]; do
     case "$1" in
         -c | --conference )
-            cmd="--conference"
             conference_option=true
             if [[ -n "$2" && "$2" != -* ]]; then
                 conference_arg="$2"
@@ -544,7 +604,6 @@ while  [[ $# -gt 0 ]]; do
             fi
             ;;
         -p | --participant)
-            cmd="--participant"
             participant_option=true
             if [[ -n "$2" && "$2" != -* ]]; then
                 participant_arg="$2"
@@ -554,19 +613,21 @@ while  [[ $# -gt 0 ]]; do
             fi
             ;;
         -t | --time)
-            cmd="--time"
             time_option=true
             if [[ -n "$2" && "$2" != -* ]]; then
-                time_arg="$2"
                 parse_time_range "$2"
                 shift 2
             else
-                echo "Option -t needs time range argument in format 'from-time - until-time', YYYY-MM-DD - YYYY-MM-DD" >&2
+                echo "Option -t needs a time range argument. $time_formats" >&2
                 exit 1
             fi
             ;;
         -v | --verbose)
             verbose=true
+            shift
+            ;;
+        -s | --silent)
+            silent=true
             shift
             ;;
         -h | --help)
@@ -599,8 +660,18 @@ if [[ "$conference_option" == true ]]; then
         # we check if the argument to "--conference" is a conference ID
         # conference ID is unique, so we show that conference
         if [[ "${#conferences_id[@]}" -gt 0 ]]; then
+
+            output=""
             # prepare the header
-            output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+            if [[ "$silent" != true ]]; then
+                header="\nConferences with ID matching \"$IMPORTANT_TEXT$conference_arg$NORMAL_TEXT\""
+                if [[ "$time_range_specified" == true ]]; then
+                    header+=" for the time period \"$from_time - $until_time\""
+                fi
+                header+="\n"
+                echo -e "$header"
+                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+            fi
             # prepare the formatted rows
             for row in "${conferences_id[@]}"; do
                 IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
@@ -612,8 +683,18 @@ if [[ "$conference_option" == true ]]; then
         # then we check if the argument to "--conference" is a conference name
         # if so, we show all matching conferences (conference names are not unique)
         elif [[ "${#conferences_name[@]}" -gt 0 ]]; then
+
+            output=""
             # prepare the header
-            output="time\tconf ID\tconf name\tconf host\tloglevel\tparticipant ID\tevent\tparameter\n"
+            if [[ "$silent" != true ]]; then
+                header="\nConferences with names matching \"$IMPORTANT_TEXT$conference_arg$NORMAL_TEXT\""
+                if [[ "$time_range_specified" == true ]]; then
+                    header+=" for the time period \"$from_time - $until_time\""
+                fi
+                header+="\n"
+                echo -e "$header"
+                output="time\tconf ID\tconf name\tconf host\tloglevel\tparticipant ID\tevent\tparameter\n"
+            fi
             # prepare the formatted rows
             for row in "${conferences_name[@]}"; do
                 IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
@@ -624,9 +705,11 @@ if [[ "$conference_option" == true ]]; then
 
         # nothing found for neither conference ID or name
         else
-            echo "No match found for \"$conference_arg\""
-            if [[ "$time_range_specified" == true ]]; then
-                echo "and time period $from_time - $until_time"
+            if [[ "$silent" != true ]]; then
+                echo "No match found for \"$conference_arg\""
+                if [[ "$time_range_specified" == true ]]; then
+                    echo "and time period $from_time - $until_time"
+                fi
             fi
         fi
         exit 0
@@ -647,104 +730,175 @@ if [[ "$conference_option" == true ]]; then
             # output
             echo -e "$output" | column -t -s $'\t'
         else
-            echo -n "No conferences found"
-            if [[ "$time_range_specified" == true ]]; then
-                echo -n " for the time period \"$from_time - $until_time\""
+            if [[ "$silent" != true ]]; then
+                echo -n "No conferences found"
+                if [[ "$time_range_specified" == true ]]; then
+                    echo -n " for the time period \"$from_time - $until_time\""
+                fi
+                echo "."
             fi
-            echo "."
         fi
         exit 0
     fi
 
 elif [[ "$participant_option" == true ]]; then
-echo 'hi'
-elif [[ "$time_option" == true ]]; then
-echo 'hi'
-fi
 
-case "$cmd" in
+    # the argument to "--participant" can be endpointID, conferenceID, conference name, startsID, IP address
+    # check for participants match within a time period (or all if period not given)
+    # we check for all ot them and show the matches
+## FIXME - we don't catch the case with no results found at all, no message is displayed if no results ## FIXME
+    if [[ -n "$participant_arg" ]]; then
 
-    --conference)
-        ;;
+        db_participants_endpoint=$(printf "$db_conference_by_participant_id_template" "$participant_arg" "$from_time" "$until_time" "$participant_arg" "$from_time" "$until_time")
+        mapfile -t participants_endpoint < <(db_query "$db_participants_endpoint")
 
-    --participant)
-        # the argument to "--participant" can be endpointID, conferenceID, startsID, IP address
-        # we check for all ot them and show the matches
-        if [[ -n "$participant_arg" ]]; then
-            db_participants_endpoint=$(printf "$db_participants_endpoint_template" "$participant_arg")
-            participants_endpoint=$(db_query "$db_participants_endpoint")
+        db_participants_conference=$(printf "$db_participant_by_conference_id_template" "$participant_arg" "$from_time" "$until_time" "$participant_arg" "$from_time" "$until_time")
+        mapfile -t participants_conference < <(db_query "$db_participants_conference")
 
-            db_participants_conference=$(printf "$db_participants_conference_template" "$participant_arg")
-            participants_conference=$(db_query "$db_participants_conference")
+        db_participants_conference_name=$(printf "$db_participant_by_conference_name_template" "$participant_arg" "$from_time" "$until_time" "$participant_arg" "$from_time" "$until_time")
+        mapfile -t participants_conference_name < <(db_query "$db_participants_conference_name")
 
-            db_participants_statsid=$(printf "$db_participants_statsid_template" "$participant_arg")
-            participants_statsid=$(db_query "$db_participants_statsid")
+        db_participants_statsid=$(printf "$db_participant_by_stats_id_template" "$participant_arg" "$from_time" "$until_time" "$participant_arg" "$from_time" "$until_time")
+        mapfile -t participants_statsid < <(db_query "$db_participants_statsid")
 
-            db_participants_ip=$(printf "$db_participants_ip_template" "$participant_arg")
-            participants_ip=$(db_query "$db_participants_ip")
+        db_participants_ip=$(printf "$db_participant_by_ip_template" "$participant_arg" "$from_time" "$until_time" "$participant_arg" "$from_time" "$until_time")
+        mapfile -t participants_ip < <(db_query "$db_participants_ip")
 
-            if [[ -n $participants_endpoint ]]; then
-                db_participant=$(printf "$db_conference_by_participant_id_template" "$participant_arg" "$participant_arg")
-                mapfile -t conference_array < <(db_query "$db_participant")
-                # prepare the header
-                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
-                # prepare the formatted rows
-                for row in "${conference_array[@]}"; do
-                    IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
-                    output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$IMPORTANT_TEXT$participant_id$NORMAL_TEXT\t$event_type\t$event_param\n"
-                done
-                # output
-                echo -e "$output" | column -t -s $'\t'
-            fi
+        # match for participant endpoint_id
+        if [[ "${#participants_endpoint[@]}" -gt 0 ]]; then
 
-            if [[ -n $participants_conference ]]; then
-                db_participant=$(printf "$db_participant_by_conference_id_template" "$participant_arg" "$participant_arg")
-                mapfile -t conference_array < <(db_query "$db_participant")
-                # prepare the header
-                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
-                # prepare the formatted rows
-                for row in "${conference_array[@]}"; do
-                    IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
-                    output+="$time\t$IMPORTANT_TEXT$conference_id$NORMAL_TEXT\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$event_param\n"
-                done
-                # output
-                echo -e "$output" | column -t -s $'\t'
-            fi
-
-            if [[ -n $participants_statsid ]]; then
-                db_participant=$(printf "$db_participant_by_stats_id_template" "$participant_arg" "$participant_arg")
-                mapfile -t conference_array < <(db_query "$db_participant")
-                # prepare the header
-                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
-                # prepare the formatted rows
-                for row in "${conference_array[@]}"; do
-                    IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
-                    output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$IMPORTANT_TEXT$event_param$NORMAL_TEXT\n"
-                done
-                # output
-                echo -e "$output" | column -t -s $'\t'
-            fi
-
-            if [[ -n $participants_ip ]]; then
-                db_participant=$(printf "$db_participant_by_ip_template" "$participant_arg" "$participant_arg")
-                mapfile -t conference_array < <(db_query "$db_participant")
-                # prepare the header
-                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
-                # prepare the formatted rows
-                for row in "${conference_array[@]}"; do
-                    IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
-                    output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$IMPORTANT_TEXT$event_param$NORMAL_TEXT\n"
-                done
-                # output
-                echo -e "$output" | column -t -s $'\t'
-            fi
-
-            exit 0
-        else
-            db_participants_all=$(printf "$db_participants_all_template" )
-            mapfile -t participant_array < <(db_query "$db_participants_all")
+            output=""
             # prepare the header
-            output="component\tparticipant ID\tconference ID\n"
+            if [[ "$silent" != true ]]; then
+                header="\nParticipants with ID matching \"$IMPORTANT_TEXT$participant_arg$NORMAL_TEXT\""
+                if [[ "$time_range_specified" == true ]]; then
+                    header+=" for the time period \"$from_time - $until_time\""
+                fi
+                header+="\n"
+                echo -e "$header"
+                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+            fi
+            # prepare the formatted rows
+            for row in "${participants_endpoint[@]}"; do
+                IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
+                output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$IMPORTANT_TEXT$participant_id$NORMAL_TEXT\t$event_type\t$event_param\n"
+            done
+            # output
+            echo -e "$output" | column -t -s $'\t'
+        fi
+
+        # match for conference_id the participant was in
+        if [[ "${#participants_conference[@]}" -gt 0 ]]; then
+
+            output=""
+            # prepare the header
+            if [[ "$silent" != true ]]; then
+                header="\nParticipants in conferences with ID matching \"$IMPORTANT_TEXT$participant_arg$NORMAL_TEXT\""
+                if [[ "$time_range_specified" == true ]]; then
+                    header+=" for the time period \"$from_time - $until_time\""
+                fi
+                header+="\n"
+                echo -e "$header"
+                output+="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+            fi
+            # prepare the formatted rows
+            for row in "${participants_conference[@]}"; do
+                IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
+                output+="$time\t$IMPORTANT_TEXT$conference_id$NORMAL_TEXT\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$event_param\n"
+            done
+            # output
+            echo -e "$output" | column -t -s $'\t'
+        fi
+
+        # match for conference_name the participant was in
+        if [[ "${#participants_conference_name[@]}" -gt 0 ]]; then
+
+            output=""
+            # prepare the header
+            if [[ "$silent" != true ]]; then
+                header="\nParticipants in conferences with name that include the string \"$IMPORTANT_TEXT$participant_arg$NORMAL_TEXT\""
+                if [[ "$time_range_specified" == true ]]; then
+                    header+=" for the time period \"$from_time - $until_time\""
+                fi
+                header+="\n"
+                echo -e "$header"
+                output+="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+            fi
+            # prepare the formatted rows
+            for row in "${participants_conference_name[@]}"; do
+                IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
+                output+="$time\t$conference_id\t$IMPORTANT_TEXT$conference_name$NORMAL_TEXT\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$event_param\n"
+            done
+            # output
+            echo -e "$output" | column -t -s $'\t'
+        fi
+
+        # match for participant stats_id
+        if [[ "${#participants_statsid[@]}" -gt 0 ]]; then
+
+            output=""
+            # prepare the header
+            if [[ "$silent" != true ]]; then
+                header="\nParticipants with stats ID that include the string \"$IMPORTANT_TEXT$participant_arg$NORMAL_TEXT\""
+                if [[ "$time_range_specified" == true ]]; then
+                    header+=" for the time period \"$from_time - $until_time\""
+                fi
+                header+="\n"
+                echo -e "$header"
+                output+="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+            fi
+            # prepare the formatted rows
+            for row in "${participants_statsid[@]}"; do
+                IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
+                output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$IMPORTANT_TEXT$event_param$NORMAL_TEXT\n"
+            done
+            # output
+            echo -e "$output" | column -t -s $'\t'
+        fi
+
+        # match for participant IP
+        if [[ "${#participants_ip[@]}" -gt 0 ]]; then
+
+            output=""
+            # prepare the header
+            if [[ "$silent" != true ]]; then
+                header="\nParticipants with IP address matching \"$IMPORTANT_TEXT$participant_arg$NORMAL_TEXT\""
+                if [[ "$time_range_specified" == true ]]; then
+                    header+=" for the time period \"$from_time - $until_time\""
+                fi
+                header+="\n"
+                echo -e "$header"
+                output+="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+            fi
+            # prepare the formatted rows
+            for row in "${participants_ip[@]}"; do
+                IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
+                output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$participant_id\t$event_type\t$IMPORTANT_TEXT$event_param$NORMAL_TEXT\n"
+            done
+            # output
+            echo -e "$output" | column -t -s $'\t'
+        fi
+
+        exit 0
+    else
+
+        # if no argument is given, we show all the participants
+        db_participants_all=$(printf "$db_participants_all_template" "$from_time" "$until_time")
+        mapfile -t participant_array < <(db_query "$db_participants_all")
+
+        # we only format the outrput if there are conferences to show
+        if [[ "${#participant_array[@]}" -gt 0 ]]; then
+            output=""
+            # prepare the header
+            if [[ "$silent" != true ]]; then
+                header="\nAll participants"
+                if [[ "$time_range_specified" == true ]]; then
+                    header+=" for the time period \"$IMPORTANT_TEXT$from_time - $until_time$NORMAL_TEXT\""
+                fi
+                header+="\n"
+                echo -e "$header"
+                output+="component\tparticipant ID\tconference ID\n"
+            fi
             # prepare the formatted rows
             for row in "${participant_array[@]}"; do
                 IFS='|' read -r jitsi_component endpoint_id conference_id <<< "$row"
@@ -752,30 +906,49 @@ case "$cmd" in
             done
             # output
             echo -e "$output" | column -t -s $'\t'
-            exit 0
+        else
+            if [[ "$silent" != true ]]; then
+                echo -n "No participants found"
+                if [[ "$time_range_specified" == true ]]; then
+                    echo -n " for the time period \"$from_time - $until_time\""
+                fi
+                echo "."
+            fi
         fi
-        ;;
+        exit 0
+    fi
 
-    --time)
-        if [[ "$time_range_specified" == true ]]; then
-            echo "Events in the period $from_time - $until_time"
-            db_events_time=$(printf "$db_events_by_period_template" "$from_time" "$until_time" "$from_time" "$until_time")
-            mapfile -t events_array < <(db_query "$db_events_time")
+elif [[ "$time_option" == true ]]; then
+
+    if [[ "$time_range_specified" == true ]]; then
+        db_events_time=$(printf "$db_events_by_period_template" "$from_time" "$until_time" "$from_time" "$until_time")
+        mapfile -t events_array < <(db_query "$db_events_time")
+
+        if [[ "${#events_array[@]}" -gt 0 ]]; then
+            output=""
             # prepare the header
-            output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+            if [[ "$silent" != true ]]; then
+                header="\nEvents in the period \"$IMPORTANT_TEXT$from_time - $until_time$NORMAL_TEXT\"\n"
+                output="time\tconference ID\tconference name\tconference host\tloglevel\tparticipant ID\tevent\tparameter\n"
+                echo -e "$header"
+            fi
             # prepare the formatted rows
             for row in "${events_array[@]}"; do
                 IFS='|' read -r time conference_id conference_name conference_host loglevel event_type participant_id event_param <<< "$row"
-                output+="$time\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$event_type\t$participant_id\t$event_param\n"
+                output+="$IMPORTANT_TEXT$time$NORMAL_TEXT\t$conference_id\t$conference_name\t$conference_host\t$loglevel\t$event_type\t$participant_id\t$event_param\n"
             done
             # output
             echo -e "$output" | column -t -s $'\t'
-            exit 0
+        else
+            if [[ "$silent" != true ]]; then
+                echo -n "No events found"
+                if [[ "$time_range_specified" == true ]]; then
+                    echo -n " for the time period \"$from_time - $until_time\""
+                fi
+                echo "."
+            fi
         fi
-        ;;
+        exit 0
+    fi
 
-    *)
-        echo -e "$help"
-        exit 1
-        ;;
-esac
+fi
