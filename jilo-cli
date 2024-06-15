@@ -720,8 +720,18 @@ if [[ "$conference_option" == true ]]; then
 
         # we only format the outrput if there are conferences to show
         if [[ "${#conference_array[@]}" -gt 0 ]]; then
+
+            output=""
             # prepare the header
-            output="component\tconference ID\tconference name\tname count\tconference host\n"
+            if [[ "$silent" != true ]]; then
+                header="\nAll conferences"
+                if [[ "$time_range_specified" == true ]]; then
+                    header+=" for the time period \"$IMPORTANT_TEXT$from_time - $until_time$NORMAL_TEXT\""
+                fi
+                header+="\n"
+                echo -e "$header"
+                output="component\tconference ID\tconference name\tname count\tconference host\n"
+            fi
             # prepare the formatted rows
             for row in "${conference_array[@]}"; do
                 IFS='|' read -r jitsi_component conference_id conference_name name_count conference_host <<< "$row"
