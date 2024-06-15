@@ -14,9 +14,13 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Initial changelog following the keepachangelog.com format
+- Added "silent" option to jilo-cli, suitable for scripting
 
 ### Changed
 - Updated the way jilo-cli handles multiple options, added filtering conferences by time period
+
+### Fixed
+- Fixed an error in double counting of conferences in jilo-cli
 
 ---
 
