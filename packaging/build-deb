@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+VERSION=$1
+
+mkdir -p deb-package
+cd deb-package
+mkdir -p "jilo-$VERSION/DEBIAN" "jilo-$VERSION/etc" "jilo-$VERSION/usr/bin" "jilo-$VERSION/usr/share/doc/jilo" "jilo-$VERSION/usr/share/man/man8"
+
+cp ../deb-control "jilo-$VERSION/DEBIAN/control"
+cp ../../jilo.conf "jilo-$VERSION/etc/jilo.conf"
+cp ../../jilo "jilo-$VERSION/usr/bin/"
+cp ../../jilo-cli "jilo-$VERSION/usr/bin/"
+cp ../../CHANGELOG.md "jilo-$VERSION/usr/share/doc/jilo/"
+cp ../../LICENSE "jilo-$VERSION/usr/share/doc/jilo/"
+cp ../../README.md "jilo-$VERSION/usr/share/doc/jilo/"
+cp ../../TODO.md "jilo-$VERSION/usr/share/doc/jilo/"
+cp ../../log-regexps.md "jilo-$VERSION/usr/share/doc/jilo/"
+cp ../man-jilo.8 "jilo-$VERSION/usr/share/man/man8/jilo.8"
+
+dpkg-deb --build "jilo-$VERSION"
+
+rm -rf "jilo-$VERSION/"

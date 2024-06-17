@@ -1,0 +1,59 @@
+.TH JILO "8" "June 2024" "jilo 0.1"
+.SH NAME
+jilo \- Bash scripts for collecting and displaying information about conference events from Jitsi Meet logs.
+.SH SYNOPSIS
+.B jilo
+[\fIoptions\fR]
+.SH DESCRIPTION
+.B jilo
+is a bash scripts for collecting and displaying information about conference events from Jitsi Meet logs.
+
+This is the logs collecting tool ('jilo'). If you want to search through an already populated databae, use the command line tool 'jilo-cli'.
+
+.SH OPTIONS
+.TP
+.B \-d, \-\-create\-db
+Create (or recreate) the database.
+.TP
+.B \-f, \-\-flush
+Flush an existing database.
+.TP
+.B \-c, \-\-check
+Check the consistency of the database and the status of the log files.
+.TP
+.B \-p, \-\-parse
+Parse the log file(s) and enter the data found in the database.
+.TP
+.B \-v, \-\-verbose
+Verbose mode with more details shown. Can be used together with \-c, \-p
+.TP
+.B \-h, \-\-help
+Display help message.
+.TP
+.B \-V, \-\-version
+Display version information.
+
+.SH EXAMPLES
+Create the database, as configured in jilo.conf (or use the defaults). If the database already exists, it drops it and recreates it:
+.B jilo -d
+
+Check the consistency of the database and show detils about the logs:
+.B jilo -c -v
+
+Parse the logs in verbose mode, with progress indication:
+.B jilo -p -v
+
+.SH CONFIGURATION
+The configuration file is /etc/jilo.conf.
+
+.SH AUTHOR
+Written and maintained by Yasen Pramatarov <yasen@lindeas.com>
+
+.SH HOMEPAGE
+https://lindeas.com/jilo
+
+.SH VERSION
+0.1
+
+.SH SEE ALSO
+jilo-cli(8)

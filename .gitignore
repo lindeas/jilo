@@ -1,4 +1,5 @@
 *.log
 *.log.*
-jitsi-stats.db
 jilo.db
+packaging/deb-package/
+packaging/rpm-package/

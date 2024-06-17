@@ -1,0 +1,11 @@
+Package: jilo
+Version: 0.1
+Section: utils
+Priority: optional
+Architecture: all
+Maintainer: Yasen Pramatarov <yasen@lindeas.com>
+Description: Jitsi logs observer
+ Bash scripts for collecting and displaying information about conference events from Jitsi Meet logs.
+ This package contains the 'jilo' logs collecting tool and 'jilo-cli' command line events searching tool.
+Homepage: https://lindeas.com/jilo
+Depends: bash, sqlite3 | mysql-client | mariadb-client, coreutils, util-linux

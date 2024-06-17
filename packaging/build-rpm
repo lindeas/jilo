@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+VERSION=$1
+RELEASE=1
+
+mkdir -p rpm-package/SOURCES rpm-package/SPECS
+cd rpm-package
+
+PACKAGE_DIR="jilo-$VERSION"
+
+mkdir -p "$PACKAGE_DIR"
+
+cp ../../jilo.conf "$PACKAGE_DIR/"
+cp ../../jilo "$PACKAGE_DIR/"
+cp ../../jilo-cli "$PACKAGE_DIR/"
+cp ../../CHANGELOG.md "$PACKAGE_DIR/"
+cp ../../LICENSE "$PACKAGE_DIR/"
+cp ../../README.md "$PACKAGE_DIR/"
+cp ../../TODO.md "$PACKAGE_DIR/"
+cp ../../log-regexps.md "$PACKAGE_DIR/"
+cp ../man-jilo.8 "$PACKAGE_DIR/"
+cp ../rpm-jilo.spec SPECS/
+
+tar -czf "jilo-$VERSION.tar.gz" "$PACKAGE_DIR"
+mv "jilo-$VERSION.tar.gz" SOURCES/
+rm -rf "$PACKAGE_DIR"
+
+rpmbuild --define "_topdir $(pwd)" --define "VERSION $VERSION" --define "RELEASE $RELEASE" -ba SPECS/jilo.spec
+
