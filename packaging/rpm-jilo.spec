@@ -7,7 +7,10 @@ URL: https://lindeas.com/jilo
 Source0: %{name}-%{version}.tar.gz
 BuildArch: noarch
 BuildRequires: bash
-Requires: bash, sqlite3 | mysql-client | mariadb-client, coreutils, util-linux
+Requires: bash
+Requires: (sqlite or mysql or mariadb)
+Requires: coreutils
+Requires: util-linux
 
 %description
 Bash scripts for collecting and displaying information about conference events from Jitsi Meet logs.

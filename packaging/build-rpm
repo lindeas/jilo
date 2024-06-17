@@ -19,7 +19,7 @@ cp ../../README.md "$PACKAGE_DIR/"
 cp ../../TODO.md "$PACKAGE_DIR/"
 cp ../../log-regexps.md "$PACKAGE_DIR/"
 cp ../man-jilo.8 "$PACKAGE_DIR/"
-cp ../rpm-jilo.spec SPECS/
+cp ../rpm-jilo.spec SPECS/jilo.spec
 
 tar -czf "jilo-$VERSION.tar.gz" "$PACKAGE_DIR"
 mv "jilo-$VERSION.tar.gz" SOURCES/
