@@ -12,6 +12,7 @@
     - issues
     - errors
     - ~~info about JVBs used~~
+    - ~~add to conference listings: duration, number of participants~~
 * Web interface
     - initial version
 ---
@@ -20,3 +21,4 @@
     - ~~finish SQL refactoring, move to separate tables for conferences and participants, linked by id~~
     - ~~update jilo-cli to work with new SQL~~
     - ~~fix sqlite and mysql schemas differences with the new SQL~~
+    - there is a bug in '-c CONFERENCE_ID' - it doesn't always show the first participant

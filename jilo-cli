@@ -53,8 +53,28 @@ IMPORTANT_TEXT=${IMPORTANT_TEXT:-$DEFAULT_IMPORTANT_TEXT}
 db_conferences_all_formatted_template="
 SELECT DISTINCT
     c.jitsi_component,
+    (SELECT ce.time
+        FROM conference_events ce
+        WHERE
+            ce.conference_id = c.conference_id
+            AND
+            ce.conference_event = 'conference expired')
+    AS start,
+    (SELECT ce.time
+        FROM conference_events ce
+        WHERE
+            ce.conference_id = c.conference_id
+            AND
+            ce.conference_event = 'conference created')
+    AS end,
     c.conference_id,
     c.conference_name,
+    (SELECT COUNT(pe.participant_id) AS participants
+        FROM participant_events pe
+        WHERE
+            pe.event_type = 'participant joining'
+            AND
+            pe.event_param = c.conference_id),
     name_counts.name_count,
     c.conference_host
 FROM
@@ -574,6 +594,22 @@ parse_time_range() {
     time_range_specified=true
 }
 
+# we have two timestamps in format YYYY-MM-DD HH:MM:SS.sss
+# calculate and return the durtion in format HH:MM:SS
+calculate_duration() {
+    start=$(date -d "$1" +"%s")
+    end=$(date -d "$2" +"%s")
+    duration_seconds=$((end - start))
+    hours=$((duration_seconds / 3600))
+    duration_seconds_remain=$((duration_seconds % 3600))
+    minutes=$((duration_seconds_remain / 60))
+    seconds=$((duration_seconds_remain % 60))
+
+    # add leading zeroes
+    duration=$(printf "%02d:%02d:%02d" $hours $minutes $seconds)
+}
+
+
 ### commandline options
 
 conference_arg=""
@@ -730,12 +766,13 @@ if [[ "$conference_option" == true ]]; then
                 fi
                 header+="\n"
                 echo -e "$header"
-                output="component\tconference ID\tconference name\tname count\tconference host\n"
+                output="component\tduration\tconference ID\tconference name\tparticipants\tname count\tconference host\n"
             fi
             # prepare the formatted rows
             for row in "${conference_array[@]}"; do
-                IFS='|' read -r jitsi_component conference_id conference_name name_count conference_host <<< "$row"
-                output+="$jitsi_component\t$conference_id\t$conference_name\t$name_count\t$conference_host\n"
+                IFS='|' read -r jitsi_component end start conference_id conference_name participants name_count conference_host <<< "$row"
+                calculate_duration "$start" "$end"
+                output+="$jitsi_component\t$duration\t$conference_id\t$conference_name\t$participants\t$name_count\t$conference_host\n"
             done
             # output
             echo -e "$output" | column -t -s $'\t'
