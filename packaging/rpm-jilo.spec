@@ -2,9 +2,13 @@ Name: jilo
 Version: 0.1.1
 Release: 1%{?dist}
 Summary: Jitsi logs observer
+
 License: GPLv2
 URL: https://lindeas.com/jilo
 Source0: %{name}-%{version}.tar.gz
+
+%define sourcedir %{_builddir}/%{name}-%{version}
+
 BuildArch: noarch
 BuildRequires: bash
 Requires: bash
@@ -46,7 +50,7 @@ cp %{sourcedir}/man-jilo.8 %{buildroot}/usr/share/man/man8/jilo.8
 /usr/share/doc/%{name}/README.md
 /usr/share/doc/%{name}/TODO.md
 /usr/share/doc/%{name}/log-regexps.md
-/usr/share/man/man8/jilo.8
+/usr/share/man/man8/jilo.8.gz
 
 %changelog
 * Wed Jun 12 2024  Yasen Pramatarov <yasen@lindeas.com> 0.1.1

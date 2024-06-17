@@ -23,7 +23,7 @@ cp ../rpm-jilo.spec SPECS/jilo.spec
 
 tar -czf "jilo-$VERSION.tar.gz" "$PACKAGE_DIR"
 mv "jilo-$VERSION.tar.gz" SOURCES/
-rm -rf "$PACKAGE_DIR"
 
 rpmbuild --define "_topdir $(pwd)" --define "VERSION $VERSION" --define "RELEASE $RELEASE" -ba SPECS/jilo.spec
 
+rm -rf "$PACKAGE_DIR"
