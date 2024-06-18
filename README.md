@@ -34,7 +34,15 @@ It needs access to the jilo database.
 
 ## installation
 
-Clone the git repo:
+You can install it in the following ways:
+
+- use the latest deb package from the **[APT repo](https://lindeas.com/debian)** - recommended for Debian/Ubuntu
+
+- use the latest **RPM package** - recommended for rpm-based systems
+
+- download the latest release from the **"Releases"** section here
+
+- clone the **git repo**:
 ```bash
 git clone https://github.com/lindeas/jilo.git
 cd jilo
