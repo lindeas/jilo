@@ -6,8 +6,8 @@
 # Bash script for Jitsi Meet components (Videobridge, Jicofo, etc.) logs parsing
 ###
 
-VERSION="0.1"
-RELEASE_DATE="2024-06-12"
+VERSION="0.1.1"
+RELEASE_DATE="2024-06-18"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" #"
 

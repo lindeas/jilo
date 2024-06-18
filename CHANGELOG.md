@@ -7,16 +7,35 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 #### Links
-- upstream: https://code.lindeas.com/lindeas/jilo/compare/v0.1...HEAD
-- codeberg: https://codeberg.org/lindeas/jilo/compare/v0.1...HEAD
-- github: https://github.com/lindeas/jilo/compare/v0.1...HEAD
-- gitlab: https://gitlab.com/lindeas/jilo/-/compare/v0.1...HEAD
+- upstream: https://code.lindeas.com/lindeas/jilo/compare/v0.1.1...HEAD
+- codeberg: https://codeberg.org/lindeas/jilo/compare/v0.1.1...HEAD
+- github: https://github.com/lindeas/jilo/compare/v0.1.1...HEAD
+- gitlab: https://gitlab.com/lindeas/jilo/-/compare/v0.1.1...HEAD
+
+### Added
+
+### Changed
+
+### Fixed
+
+---
+
+## 0.1.1 - 2024-06-18
+
+#### Links
+- upstream: https://code.lindeas.com/lindeas/jilo/compare/v0.1...v0.1.1
+- codeberg: https://codeberg.org/lindeas/jilo/compare/v0.1...v0.1.1
+- github: https://github.com/lindeas/jilo/compare/v0.1...v0.1.1
+- gitlab: https://gitlab.com/lindeas/jilo/-/compare/v0.1...v0.1.1
 
 ### Added
 - Initial changelog following the keepachangelog.com format
 - Added "silent" option to jilo-cli, suitable for scripting
 - Added time duration and number of participants in conferences listings
-- Build resources and scripts for DEB and RPM packages
+- Added man page
+- Added build resources and scripts for DEB and RPM packages
+- Initial build of the DEB and RPM packages
+- Added DEB repository
 
 ### Changed
 - Updated the way jilo-cli handles multiple options, added filtering conferences by time period
@@ -24,7 +43,6 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Fixed an error in double counting of conferences in jilo-cli
 
----
 
 ## 0.1 - 2024-06-12
 

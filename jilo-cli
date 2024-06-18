@@ -7,8 +7,8 @@
 # Command line interface (jilo-cli)
 ###
 
-VERSION="0.1.1-dev"
-RELEASE_DATE="unreleased"
+VERSION="0.1.1"
+RELEASE_DATE="2024-06-18"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" #"
 
