@@ -18,7 +18,7 @@ You are welcome to send feedback with issues, comments and pull requests to a gi
 
 ## version
 
-Current version: **0.1** released on **2024-06-12**
+Current version: **0.1.1** released on **2024-06-18**
 
 ## components
 
