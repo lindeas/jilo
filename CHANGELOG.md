@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file.
 - gitlab: https://gitlab.com/lindeas/jilo/-/compare/v0.1.1...HEAD
 
 ### Added
+- Added 'jitsi_components' table to handle events related to the platform health
+- Added jicofo starting, xmpp registering and started events
 
 ### Changed
 

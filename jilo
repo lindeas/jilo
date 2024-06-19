@@ -65,11 +65,14 @@ db_get_participant="SELECT * FROM participants WHERE endpoint_id = '%s';"
 db_insert_participants_template="INSERT INTO participants (jitsi_component, endpoint_id, conference_id) VALUES ('%s', '%s', '%s');"
 db_insert_participant_event_template="INSERT INTO participant_events (jitsi_component, loglevel, time, participant_id, event_type, event_param) VALUES ('%s', '%s', '%s', '%s', '%s', '%s');"
 
+db_insert_jitsi_component_event_template="INSERT INTO jitsi_components (jitsi_component, loglevel, time, component_id, event_type, event_param) VALUES ('%s', '%s', '%s', '%s', '%s', '%s');"
+
 db_drop="
 DROP TABLE IF EXISTS conferences;
 DROP TABLE IF EXISTS conference_events;
 DROP TABLE IF EXISTS participants;
 DROP TABLE IF EXISTS participant_events;
+DROP TABLE IF EXISTS jitsi_components;
 DROP TABLE IF EXISTS state;"
 db_create="CREATE TABLE conferences (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,6 +108,15 @@ CREATE TABLE participant_events (
     event_param TEXT,
     FOREIGN KEY (participant_id) REFERENCES participants(id)
 );
+CREATE TABLE jitsi_components (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jitsi_component TEXT NOT NULL,
+    loglevel TEXT,
+    time TEXT NOT NULL,
+    component_id TEXT,
+    event_type TEXT,
+    event_param TEXT
+);
 CREATE TABLE state (
     id INTEGER PRIMARY KEY,
     jitsi_component TEXT,
@@ -123,6 +135,7 @@ DELETE FROM conferences;
 DELETE FROM conference_events;
 DELETE FROM participants;
 DELETE FROM participant_events;
+DELETE FROM jitsi_components;
 DELETE FROM state;"
 
 help="Usage:
@@ -345,8 +358,31 @@ jitsi_log_parse() {
                 ;;
 
             JICOFO)
+
+                # jicofo starting
+                if [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*Main\.main.*:\ Starting\ Jicofo\. ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    loglevel="${BASH_REMATCH[2]}"
+## FIXME a way to add some jicofo id and/or parameter
+                    db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "" "jicofo starting" "")
+                    db_query "$db_insert"
+
+                # jicofo registered to xmpp
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[xmpp_connection=client\]\ XmppProvider\$connectionListener\$1\.authenticated.*:\ Registered\. ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    loglevel="${BASH_REMATCH[2]}"
+                    db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "" "jicofo xmpp registered" "")
+                    db_query "$db_insert"
+
+                # jicofo started
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\JicofoServices\.\<init\>.*\ Registering\ GlobalMetrics\ periodic\ updates\. ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    loglevel="${BASH_REMATCH[2]}"
+                    db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "" "jicofo started" "")
+                    db_query "$db_insert"
+
                 # locate conference starting event
-                if [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[room=([^ ]+)@(.*)\]\ JitsiMeetConferenceImpl\.joinTheRoom ]]; then
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[room=([^ ]+)@(.*)\]\ JitsiMeetConferenceImpl\.joinTheRoom ]]; then
                     event_time="${BASH_REMATCH[1]}"
                     loglevel="${BASH_REMATCH[2]}"
                     conference_id="0" # FIXME here we still don't have the jicofo room ID
