@@ -51,6 +51,27 @@ regex
 
 ## JICOFO
 
+### jicofo starting
+needed: *timestamp, loglevel* (it's good to find a way to diferentiate the jicofo by some id (IP, hostname, etc.)
+
+regex:
+
+```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*Main\.main.*:\ Starting\ Jicofo\.```
+
+### jicofo registered to xmpp
+needed: *timestamp, loglevel*
+
+regex
+
+```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[xmpp_connection=client\]\ XmppProvider\$connectionListener\$1\.authenticated.*:\ Registered\.```
+
+### jicofo started
+needed: *timestamp, loglevel*
+
+regex
+
+```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\JicofoServices\.\<init\>.*\ Registering\ GlobalMetrics\ periodic\ updates\.```
+
 ### conference start
 needed: *timestamp, loglevel, conferenceName,* (**FIXME**: we don't have *conferenceID* here, it's good to have it)
 
