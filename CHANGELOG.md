@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Added 'jitsi_components' table to handle events related to the platform health
 - Added jicofo starting, xmpp registering and started events
+- Added jvb added, removed and lost events
 
 ### Changed
 
