@@ -2,7 +2,7 @@
 
 This is a reference of the log lines and the corresponding regexps that are used in Jilo for events tracking.
 
-Work in progress: 2024.06.16
+Work in progress: 2024.06.22
 
 ----
 
@@ -54,7 +54,7 @@ regex
 ### jicofo starting
 needed: *timestamp, loglevel* (it's good to find a way to diferentiate the jicofo by some id (IP, hostname, etc.)
 
-regex:
+regex
 
 ```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*Main\.main.*:\ Starting\ Jicofo\.```
 
@@ -76,27 +76,33 @@ regex
 needed *timestamp, loglevel, jvbID, jvb version, jvb region*
 
 log
+
 ```Jicofo 2024-06-18 18:38:07.378 INFO: [33] BridgeSelector.addJvbAddress#96: Added new videobridge: Bridge[jid=jvbbrewery@internal.auth.meet.example.com/87531df0-4018-420a-bfb3-cb2f8d48ba08, version=2.3.105-ge155b81e, relayId=null, region=null, stress=0.00]```
 
 regex
+
 ```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\BridgeSelector\.addJvbAddress.*:\ Added\ new\ videobridge:\ Bridge\[jid=.*@.*\/(.*),\ version=(.*),.*region=(.*),```
 
 ### jvb removed
 needed *timestamp, loglevel, jvbID*
 
 log
+
 ```Jicofo 2024-06-22 12:20:38.713 INFO: [1401] BridgeSelector.removeJvbAddress#109: Removing JVB: jvbbrewery@internal.auth.meet.example.com/87531df0-4018-420a-bfb3-cb2f8d48ba08```
 
 regex
+
 ```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\BridgeSelector\.removeJvbAddress.*:\ Removing\ JVB:\ .*@.*\/(.*)```
 
 ### jvb lost (just in case the removal was not detected)
 needed *timestamp, loglevel, jvbID*
 
 log
+
 ```Jicofo 2024-06-22 12:20:38.713 WARNING: [1401] BridgeSelector.removeJvbAddress#112: Lost a bridge: jvbbrewery@internal.auth.meet.example.com/87531df0-4018-420a-bfb3-cb2f8d48ba08```
 
 regex
+
 ```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\BridgeSelector\.removeJvbAddress.*:\ Lost\ a\ bridge:\ .*@.*\/(.*)```
 
 ### conference start
