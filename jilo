@@ -382,7 +382,7 @@ jitsi_log_parse() {
                     db_query "$db_insert"
 
                 # bridge added
-                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\BridgeSelector\.addJvbAddress.*:\ Added\ new\ videobridge:\ Bridge\[jid=.*@.*\/(.*),\ version=(.*),.*region=(.*), ]]; then
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\BridgeSelector\.addJvbAddress.*:\ Added\ new\ videobridge:\ Bridge\[jid=.*@.*\/(.*),\ version=(.*),\ .*\ region=(.*), ]]; then
                     event_time="${BASH_REMATCH[1]}"
                     loglevel="${BASH_REMATCH[2]}"
                     jvb_id="${BASH_REMATCH[3]}"
@@ -409,6 +409,34 @@ jitsi_log_parse() {
                     loglevel="${BASH_REMATCH[2]}"
                     jvb_id="${BASH_REMATCH[3]}"
                     db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "$jvb_id" "jvb lost" "")
+                    db_query "$db_insert"
+
+                # bridge healthcheck scheduled
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\JvbDoctor\.bridgeAdded.*:\ Scheduled\ health-check\ task\ for:\ Bridge\[jid=.*@.*\/(.*),\ version=(.*),\ .*\ region=(.*), ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    loglevel="${BASH_REMATCH[2]}"
+                    jvb_id="${BASH_REMATCH[3]}"
+                    jvb_version="${BASH_REMATCH[4]}"
+                    jvb_region="${BASH_REMATCH[5]}"
+                    db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "$jvb_id" "jvb health-check scheduled" "")
+                    db_query "$db_insert"
+                    db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "$jvb_id" "jvb version" "$jvb_version")
+                    db_query "$db_insert"
+                    db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "$jvb_id" "jvb region" "$jvb_region")
+                    db_query "$db_insert"
+
+                # bridge healthcheck stopped
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\JvbDoctor\.bridgeRemoved.*:\ Stopping\ health-check\ task\ for:\ Bridge\[jid=.*@.*\/(.*),\ version=(.*),\ .*\ region=(.*), ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    loglevel="${BASH_REMATCH[2]}"
+                    jvb_id="${BASH_REMATCH[3]}"
+                    jvb_version="${BASH_REMATCH[4]}"
+                    jvb_region="${BASH_REMATCH[5]}"
+                    db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "$jvb_id" "jvb health-check stopped" "")
+                    db_query "$db_insert"
+                    db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "$jvb_id" "jvb version" "$jvb_version")
+                    db_query "$db_insert"
+                    db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "$jvb_id" "jvb region" "$jvb_region")
                     db_query "$db_insert"
 
                 # locate conference starting event
