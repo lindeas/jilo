@@ -73,7 +73,7 @@ regex
 ```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\JicofoServices\.\<init\>.*\ Registering\ GlobalMetrics\ periodic\ updates\.```
 
 ### jvb added
-needed *timestamp, loglevel, jvbID, jvb version, jvb region*
+needed: *timestamp, loglevel, jvbID, jvb version, jvb region*
 
 log
 
@@ -84,7 +84,7 @@ regex
 ```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\BridgeSelector\.addJvbAddress.*:\ Added\ new\ videobridge:\ Bridge\[jid=.*@.*\/(.*),\ version=(.*),.*region=(.*),```
 
 ### jvb removed
-needed *timestamp, loglevel, jvbID*
+needed: *timestamp, loglevel, jvbID*
 
 log
 
@@ -95,7 +95,7 @@ regex
 ```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\BridgeSelector\.removeJvbAddress.*:\ Removing\ JVB:\ .*@.*\/(.*)```
 
 ### jvb lost (just in case the removal was not detected)
-needed *timestamp, loglevel, jvbID*
+needed: *timestamp, loglevel, jvbID*
 
 log
 
@@ -104,6 +104,28 @@ log
 regex
 
 ```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\BridgeSelector\.removeJvbAddress.*:\ Lost\ a\ bridge:\ .*@.*\/(.*)```
+
+### jvb health-check scheduled
+needed: *timestamp, loglevel, jvbID, jvb version, jvb region*
+
+log
+
+```Jicofo 2024-06-22 12:22:03.707 INFO: [40] JvbDoctor.bridgeAdded#128: Scheduled health-check task for: Bridge[jid=jvbbrewery@internal.auth.meet.example.com/87531df0-4018-420a-bfb3-cb2f8d48ba08, version=2.3.105-ge155b81e, relayId=null, region=null, stress=0.00]```
+
+regex
+
+```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\JvbDoctor\.bridgeAdded.*:\ Scheduled\ health-check\ task\ for:\ Bridge\[jid=.*@.*\/(.*),\ version=(.*),\ .*\ region=(.*),```
+
+### jvb health-check stopped
+needed: *timestamp, loglevel, jvbID, jvb version, jvb region*
+
+log
+
+```Jicofo 2024-06-22 12:20:38.733 INFO: [40] JvbDoctor.bridgeRemoved#105: Stopping health-check task for: Bridge[jid=jvbbrewery@internal.auth.meet.example.com/87531df0-4018-420a-bfb3-cb2f8d48ba08, version=2.3.105-ge155b81e, relayId=null, region=null, stress=0.00]```
+
+regex
+
+```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\JvbDoctor\.bridgeRemoved.*:\ Stopping\ health-check\ task\ for:\ Bridge\[jid=.*@.*\/(.*),\ version=(.*),\ .*\ region=(.*),```
 
 ### conference start
 needed: *timestamp, loglevel, conferenceName,* (**FIXME**: we don't have *conferenceID* here, it's good to have it)
