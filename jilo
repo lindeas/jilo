@@ -439,6 +439,25 @@ jitsi_log_parse() {
                     db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "$jvb_id" "jvb region" "$jvb_region")
                     db_query "$db_insert"
 
+                # WARNING no opertional bridges
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*BridgeSelector\.selectBridge.*\ There\ are\ no\ operational\ bridges\. ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    loglevel="${BASH_REMATCH[2]}"
+
+                    # add the event details
+                    db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "" "no operational bridges" "")
+                    db_query "$db_insert"
+
+                # ERROR no bridge available
+                elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+).*:\ Can\ not\ invite\ participant,\ no\ bridge\ available\. ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    loglevel="${BASH_REMATCH[2]}"
+                    conference_id="${BASH_REMATCH[4]}"
+
+                    # add the event details
+                    db_insert=$(printf "$db_insert_jitsi_component_event_template" "$jitsi_component" "$loglevel" "$event_time" "$conference_id" "no bridge available" "")
+                    db_query "$db_insert"
+
                 # locate conference starting event
                 elif [[ "$line" =~ Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[room=([^ ]+)@(.*)\]\ JitsiMeetConferenceImpl\.joinTheRoom ]]; then
                     event_time="${BASH_REMATCH[1]}"

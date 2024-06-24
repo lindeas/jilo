@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - Added jicofo starting, xmpp registering and started events
 - Added jvb added, removed and lost events
 - Added jvb health-check scheduled and stopped events
+- Added "no operational bridges" and "no bridge available" events
 
 ### Changed
 

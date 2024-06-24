@@ -2,7 +2,7 @@
 
 This is a reference of the log lines and the corresponding regexps that are used in Jilo for events tracking.
 
-Work in progress: 2024.06.22
+Work in progress: 2024.06.24
 
 ----
 
@@ -126,6 +126,28 @@ log
 regex
 
 ```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\JvbDoctor\.bridgeRemoved.*:\ Stopping\ health-check\ task\ for:\ Bridge\[jid=.*@.*\/(.*),\ version=(.*),\ .*\ region=(.*),```
+
+### Warning: no operational bridges
+needed: *timestamp, loglevel*
+
+log
+
+```Jicofo 2024-06-25 10:44:18.727 WARNING: [2505] BridgeSelector.selectBridge#182: There are no operational bridges.```
+
+regex
+
+```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*BridgeSelector\.selectBridge.*\ There\ are\ no\ operational\ bridges\.```
+
+### Severe: no bridge available
+needed: *timestamp, loglevel, conferenceID*
+
+log
+
+```Jicofo 2024-06-25 10:44:18.727 SEVERE: [2505] [room=fewfewf-wfwegf@conference.meet.example.com meeting_id=750c7bcc-d9fb-4b8b-a085-dcf6b5c99546 participant=49e3837d] ParticipantInviteRunnable.doRun#218: Can not invite participant, no bridge available.```
+
+regex
+
+```Jicofo\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[room=([^ ]+)@.*\ meeting_id=([a-zA-Z0-9-]+).*:\ Can\ not\ invite\ participant,\ no\ bridge\ available\.```
 
 ### conference start
 needed: *timestamp, loglevel, conferenceName,* (**FIXME**: we don't have *conferenceID* here, it's good to have it)
