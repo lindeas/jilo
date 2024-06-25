@@ -294,6 +294,21 @@ jitsi_log_parse() {
                     db_insert=$(printf "$db_insert_conference_event_template" "$jitsi_component" "$loglevel" "$event_time" "$conference_id" "conference created" "")
                     db_query "$db_insert"
 
+                # locate the conference ending event
+                elif [[ "$line" =~ ${jitsi_component}\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=([a-zA-Z0-9]+)\ .*\ Conference\.expire ]]; then
+                    event_time="${BASH_REMATCH[1]}"
+                    loglevel="${BASH_REMATCH[2]}"
+                    conference_id="${BASH_REMATCH[3]}"
+
+                    # always check or add the conference
+                    db_conference_check "$jitsi_component" "$conference_id" "$conference_name" "$conference_host"
+
+                    db_insert=$(printf "$db_insert_conference_event_template" "$jitsi_component" "$loglevel" "$event_time" "$conference_id" "conference expired" "")
+                    db_query "$db_insert"
+
+                    # the conference ended, forget about it
+                    unset "$conference_id" "$conference_name"
+
                 # locate participant joining event
                 elif [[ "$line" =~ ${jitsi_component}\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=([a-zA-Z0-9]+)\ .*epId=([a-zA-Z0-9-]+)\ stats_id=([a-zA-Z0-9-]+)\ .*Starting\ the\ Agent\ without\ remote\ candidates ]]; then
                     event_time="${BASH_REMATCH[1]}"
@@ -338,21 +353,6 @@ jitsi_log_parse() {
 
                     # the participant left, forget about him
                     unset "$participant_endpoint_id" "$participant_stats_id" "$participant_IP"
-
-                # locate the conference ending event
-                elif [[ "$line" =~ ${jitsi_component}\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=([a-zA-Z0-9]+)\ .*\ Conference\.expire ]]; then
-                    event_time="${BASH_REMATCH[1]}"
-                    loglevel="${BASH_REMATCH[2]}"
-                    conference_id="${BASH_REMATCH[3]}"
-
-                    # always check or add the conference
-                    db_conference_check "$jitsi_component" "$conference_id" "$conference_name" "$conference_host"
-
-                    db_insert=$(printf "$db_insert_conference_event_template" "$jitsi_component" "$loglevel" "$event_time" "$conference_id" "conference expired" "")
-                    db_query "$db_insert"
-
-                    # the conference ended, forget about it
-                    unset "$conference_id" "$conference_name"
 
                 fi
                 ;;

@@ -2,7 +2,19 @@
 
 This is a reference of the log lines and the corresponding regexps that are used in Jilo for events tracking.
 
-Work in progress: 2024.06.24
+```
+<COMPONENT>
+<event>
+needed: data being searched for in the log line
+usage:
+ example Jilo command lines related to the event
+log
+ example log line with the data about the event
+regex
+ the regular expression for searching the event
+```
+
+Work in progress: 2024.06.25
 
 ----
 
@@ -10,6 +22,12 @@ Work in progress: 2024.06.24
 
 ### conference start
 needed: *timestamp, loglevel, conferenceID, conferenceName, conferenceDomain*
+
+usage:
+
+**```jilo-cli -c conferenceID```**
+
+**```jilo-cli -c conferenceName```**
 
 log
 
@@ -22,12 +40,36 @@ regex
 ### conference end
 needed: *timestamp, loglevel, conferenceID* (optionally in case we don't have the starting event: *conferenceName, conferenceDomain*)
 
+usage:
+
+**```jilo-cli -c conferenceID```**
+
+**```jilo-cli -c conferenceName```**
+
 log
 
-```JVB 2024-04-01 03:04:24.339 INFO: [18981] [confId=4c14584fce9a5970 conf_name=someroom123@conference.meet.example.com meeting_id=177c43a3] EndpointConnectionStatusMonitor.stop#66: Stopped```
+```JVB 2024-04-01 03:52:39.116 INFO: [19031] [confId=8c116568f5201f28 conf_name=someroom123@conference.meex.example.com meeting_id=a5449477] Conference.expire#595: Expiring.```
+
+regex
+
+```JVB\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=([a-zA-Z0-9]+)\ .*\ Conference\.expire```
 
 ## participant joining
 needed: *timestamp, loglevel, conferenceID, endpointID, statsID*
+
+usage:
+
+**```jilo-cli -c conferenceID```**
+
+**```jilo-cli -c conferenceName```**
+
+**```jilo-cli -p endpointID```**
+
+**```jilo-cli -p statsID```**
+
+log
+
+```JVB 2024-04-01 03:02:53.411 INFO: [18968] [confId=4c14584fce9a5970 conf_name=someroom123@conference.meet.example.com meeting_id=177c43a3 epId=660d9565 stats_id=Elva-jQ6 local_ufrag=9eici1hqbpo5dq] IceTransport.startConnectivityEstablishment#205: Starting the Agent without remote candidates.```
 
 regex
 
@@ -36,12 +78,40 @@ regex
 ### pair selection
 needed: *timestamp, loglevel, conferenceID, endpointID, statsID, participant IP address*
 
+usage:
+
+**```jilo-cli -c conferenceID```**
+
+**```jilo-cli -c conferenceName```**
+
+**```jilo-cli -p endpointID```**
+
+**```jilo-cli -p statsID```**
+
+**```jilo-cli -p participant_IP_address```**
+
+log
+
+```JVB 2024-04-01 03:02:53.907 INFO: [18971] [confId=4c14584fce9a5970 conf_name=someroom123@conference.meet.example.com meeting_id=177c43a3 epId=660d9565 stats_id=Elva-jQ6 local_ufrag=9eici1hqbpo5dq ufrag=9eici1hqbpo5dq name=stream-660d9565] CheckList.handleNominationConfirmed#406: Selected pair for stream stream-660d9565.RTP: SERVER_IP:10000/udp/srflx -> PARTICIPANT_IP:61542/udp/prflx (stream-660d9565.RTP)```
+
 regex
 
 ```JVB ([0-9-]+\ [0-9:.]+)\ [A-Z]+:.*\[confId=${conference_id}\ .*epId=${participant_endpoint_id}\ stats_id=${participant_stats_id}\ .*Selected\ pair\ for\ stream\ .*([0-9.]+):10000/udp/srflx\ \-\>\ ([0-9.]+):[0-9]+/udp/prflx```
 
 ### participant leaving
 needed: *timestamp, loglevel, conferenceID, endpointID, statsID*
+
+usage:
+
+**```jilo-cli -c conferenceID```**
+
+**```jilo-cli -c conferenceName```**
+
+**```jilo-cli -p endpointID```**
+
+log
+
+```JVB 2024-04-01 03:03:04.440 INFO: [18967] [confId=4c14584fce9a5970 conf_name=someroom123@conference.meet.example.com meeting_id=177c43a3 epId=ef00c95e stats_id=Joseph-kU4] Endpoint.expire#1155: Expired.```
 
 regex
 
