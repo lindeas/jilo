@@ -54,7 +54,7 @@ regex
 
 ```JVB\ ([0-9-]+\ [0-9:.]+)\ ([A-Z]+):.*\[confId=([a-zA-Z0-9]+)\ .*\ Conference\.expire```
 
-## participant joining
+### participant joining
 needed: *timestamp, loglevel, conferenceID, endpointID, statsID*
 
 usage:
