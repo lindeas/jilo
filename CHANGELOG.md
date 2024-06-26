@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - Added jvb added, removed and lost events
 - Added jvb health-check scheduled and stopped events
 - Added "no operational bridges" and "no bridge available" events
+- Added "jitsi-component" service level events search in jilo-cli
 
 ### Changed
 
