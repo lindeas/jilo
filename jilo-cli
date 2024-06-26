@@ -90,7 +90,7 @@ JOIN (
 ) AS name_counts ON c.conference_name = name_counts.conference_name
 JOIN
     conference_events ce ON c.conference_id = ce.conference_id
-WHERE (ce.time >= '%s' AND ce.time <= '%s')
+WHERE (ce.time >= '%s 00:00:00' AND ce.time <= '%s 23:59:59')
 ORDER BY
     c.id;"
 
@@ -114,7 +114,7 @@ LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
     c.conference_id = '%s'
-AND (pe.time >= '%s' AND pe.time <= '%s')
+AND (pe.time >= '%s 00:00:00' AND pe.time <= '%s 23:59:59')
 
 UNION
 
@@ -133,7 +133,7 @@ LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE
     c.conference_id = '%s'
-AND (event_time >= '%s' AND event_time <= '%s')
+AND (event_time >= '%s 00:00:00' AND event_time <= '%s 23:59:59')
 
 ORDER BY
     pe.time;"
@@ -158,7 +158,7 @@ LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
     c.conference_name = '%s'
-AND (pe.time >= '%s' AND pe.time <= '%s')
+AND (pe.time >= '%s 00:00:00' AND pe.time <= '%s 23:59:59')
 
 UNION
 
@@ -177,7 +177,7 @@ LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE
     c.conference_name = '%s'
-AND (event_time >= '%s' AND event_time <= '%s')
+AND (event_time >= '%s 00:00:00' AND event_time <= '%s 23:59:59')
 
 ORDER BY
     pe.time;"
@@ -192,7 +192,7 @@ FROM
 JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
-    pe.time >= '%s' AND pe.time <= '%s'
+    pe.time >= '%s 00:00:00' AND pe.time <= '%s 23:59:59'
 ORDER BY p.id;"
 
 db_conference_by_participant_id_template="
@@ -215,7 +215,7 @@ LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
     p.endpoint_id = '%s'
-AND (pe.time >= '%s' AND pe.time <= '%s')
+AND (pe.time >= '%s 00:00:00' AND pe.time <= '%s 23:59:59')
 
 UNION
 
@@ -234,7 +234,7 @@ LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE
     participant_id = '%s'
-AND (event_time >= '%s' AND event_time <= '%s')
+AND (event_time >= '%s 00:00:00' AND event_time <= '%s 23:59:59')
 
 ORDER BY
     pe.time;"
@@ -259,7 +259,7 @@ LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
     c.conference_id = '%s'
-AND (pe.time >= '%s' AND pe.time <= '%s')
+AND (pe.time >= '%s 00:00:00' AND pe.time <= '%s 23:59:59')
 
 UNION
 
@@ -278,7 +278,7 @@ LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE
     ce.conference_id = '%s'
-AND (event_time >= '%s' AND event_time <= '%s')
+AND (event_time >= '%s 00:00:00' AND event_time <= '%s 23:59:59')
 
 ORDER BY
     pe.time;"
@@ -303,7 +303,7 @@ LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
     c.conference_name LIKE '%%%s%%'
-AND (pe.time >= '%s' AND pe.time <= '%s')
+AND (pe.time >= '%s 00:00:00' AND pe.time <= '%s 23:59:59')
 
 UNION
 
@@ -321,7 +321,7 @@ FROM
 LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE c.conference_name LIKE '%%%s%%'
-AND (event_time >= '%s' AND event_time <= '%s')
+AND (event_time >= '%s 00:00:00' AND event_time <= '%s 23:59:59')
 
 ORDER BY
     pe.time;"
@@ -346,7 +346,7 @@ LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
     pe.event_type = 'stats_id' AND pe.event_param LIKE '%%%s%%'
-AND (pe.time >= '%s' AND pe.time <= '%s')
+AND (pe.time >= '%s 00:00:00' AND pe.time <= '%s 23:59:59')
 
 UNION
 
@@ -365,7 +365,7 @@ LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE
     event_type = 'stats_id' AND event_param LIKE '%%%s%%'
-AND (event_time >= '%s' AND event_time <= '%s')
+AND (event_time >= '%s 00:00:00' AND event_time <= '%s 23:59:59')
 
 ORDER BY
     pe.time;"
@@ -390,7 +390,7 @@ LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
     pe.event_type = 'pair selected' AND pe.event_param = '%s'
-AND (pe.time >= '%s' AND pe.time <= '%s')
+AND (pe.time >= '%s 00:00:00' AND pe.time <= '%s 23:59:59')
 
 UNION
 
@@ -409,10 +409,26 @@ LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE
     event_type = 'pair selected' AND event_param = '%s'
-AND (event_time >= '%s' AND event_time <= '%s')
+AND (event_time >= '%s 00:00:00' AND event_time <= '%s 23:59:59')
 
 ORDER BY
     pe.time;"
+
+## jitsi component related
+
+# we use "jitsi_component = %s" (without quotes)
+# to re-use the query for all components ("jitsi_component = jitsi_component")
+# for specific component the single quotes are added upon loading the template
+db_jitsi_components_template="
+SELECT jitsi_component, loglevel, time, component_id, event_type, event_param
+FROM
+    jitsi_components
+WHERE
+    jitsi_component = %s
+AND
+    (time >= '%s 00:00:00' AND time <= '%s 23:59:59')
+ORDER BY
+    time;"
 
 ## time period related
 
@@ -435,7 +451,7 @@ LEFT JOIN
 LEFT JOIN
     participant_events pe ON p.endpoint_id = pe.participant_id
 WHERE
-    pe.time >= '%s' AND pe.time <= '%s'
+    pe.time >= '%s 00:00:00' AND pe.time <= '%s 23:59:59'
 
 UNION
 
@@ -453,7 +469,7 @@ FROM
 LEFT JOIN
     conference_events ce ON c.conference_id = ce.conference_id
 WHERE
-    event_time >= '%s' AND event_time <= '%s'
+    event_time >= '%s 00:00:00' AND event_time <= '%s 23:59:59'
 
 ORDER BY
     pe.time;"
@@ -464,7 +480,8 @@ help="Usage:
     Options:
         --conference|-c [conference ID or name] - show specific conference(s), all of empty
         --participant|-p [participant endpoint ID, conference ID, conference name, participant IP, or participant stats ID] - show specific participant(s), all if empty
-        --time|-t - show stats for a time interval; can be use separately ot together with -c or -p
+        --jitsi-component|-j [jvb|jicofo] - show service level events
+        --time|-t - show stats for a time interval; can be use separately ot together with -c, -p, or -j
         --verbose|-v - show more details, when available
         --silent|-s - show less details, more suitable for scripting
         --help|-h - show this help message
@@ -616,6 +633,8 @@ conference_arg=""
 conference_option=false
 participant_arg=""
 participant_option=false
+component_arg=""
+component_option=false
 from_time="0000-00-00"
 until_time="9999-12-31"
 time_option=false
@@ -643,6 +662,15 @@ while  [[ $# -gt 0 ]]; do
             participant_option=true
             if [[ -n "$2" && "$2" != -* ]]; then
                 participant_arg="$2"
+                shift 2
+            else
+                shift
+            fi
+            ;;
+        -j | --jitsi-component)
+            component_option=true
+            if [[ -n "$2" && "$2" != -* ]]; then
+                component_arg="$2"
                 shift 2
             else
                 shift
@@ -964,6 +992,53 @@ elif [[ "$participant_option" == true ]]; then
         fi
         exit 0
     fi
+
+elif [[ "$component_option" == true ]]; then
+
+    # argument for "--jitsi-component | -j" can be "jvb", "jicofo"
+    if [[ -n "$component_arg" ]]; then
+        case "$component_arg" in
+            jvb)
+                jitsi_component="'JVB'"
+                ;;
+            jicofo)
+                jitsi_component="'JICOFO'"
+                ;;
+            *)
+                # we have a component events search, but an unknown component string
+                # exiting with error, it's not a recognized option argument
+                echo "Invalid option: $component_arg" >&2
+                echo -e "$help"
+                exit 1
+                ;;
+        esac
+        header="\nJitsi components events for \"$IMPORTANT_TEXT$jitsi_component$NORMAL_TEXT\""
+
+    else
+        jitsi_component="jitsi_component"
+        header="\nJitsi components events for \"$IMPORTANT_TEXT all components$NORMAL_TEXT\""
+    fi
+
+    db_jitsi_components=$(printf "$db_jitsi_components_template" "$jitsi_component" "$from_time" "$until_time")
+    mapfile -t jitsi_components < <(db_query "$db_jitsi_components")
+
+    output=""
+    # prepare the header
+    if [[ "$silent" != true ]]; then
+        if [[ "$time_range_specified" == true ]]; then
+            header+=" for the time period \"$from_time - $until_time\""
+        fi
+        header+="\n"
+        echo -e "$header"
+        output+="jitsi_component\tloglevel\ttime\tcomponent ID\tevent\tparameter\n"
+    fi
+    # prepare the formatted rows
+    for row in "${jitsi_components[@]}"; do
+        IFS='|' read -r jitsi_component loglevel time component_id event_type event_param <<< "$row"
+        output+="$jitsi_component\t$loglevel\t$time\t$component_id\t$event_type\t$event_param\n"
+    done
+    # output
+    echo -e "$output" | column -t -s $'\t'
 
 elif [[ "$time_option" == true ]]; then
 
