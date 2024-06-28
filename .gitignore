@@ -1,6 +1,5 @@
 *.log
 *.log.*
 jilo.db
-jilo-web.db
 packaging/deb-package/
 packaging/rpm-package/
