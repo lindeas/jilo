@@ -11,7 +11,7 @@ class User {
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
         $query = $this->db->prepare("INSERT INTO users (username, password) VALUES (:username, :password)");
         $query->bindParam(':username', $username);
-        $query->bindParam(':password', $username);
+        $query->bindParam(':password', $hashedPassword);
 
         return $query->execute();
     }

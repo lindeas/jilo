@@ -5,7 +5,7 @@ require 'classes/user.php';
 unset($error);
 
 try {
-    $db = new Database('../jilo-web.db');
+    $db = new Database('./jilo-web.db');
     $user = new User($db);
 
     if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
