@@ -4,6 +4,8 @@
 
 Bash scripts for collecting and displaying information about conference events from Jitsi Meet logs.
 
+This is the command line tools repository. For a web interface to query Jilo, go to the **"jilo-web"* repository.
+
 The webpage for this project is https://lindeas.com/jilo. The main git repo is:
 - https://code.lindeas.com/lindeas/jilo
 
