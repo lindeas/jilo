@@ -29,7 +29,10 @@ if (isset($error)) {
 <body>
 
 <ul class="menu">
+<?php if ( !isset($_SESSION['user_id']) ) { ?>
     <li><a href="login.php">login</a></li>
-    <li><a href="logout.php">logout</a></li>
     <li><a href="register.php">register</a></li>
+<?php } else { ?>
+    <li><a href="logout.php">logout</a></li>
+<?php } ?>
 </ul>

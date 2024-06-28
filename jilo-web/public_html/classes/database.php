@@ -17,7 +17,7 @@ class Database {
     }
 
     public function getConnection() {
-        return $this-pdo;
+        return $this->pdo;
     }
 
 }
