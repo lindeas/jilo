@@ -69,12 +69,13 @@ SELECT DISTINCT
     AS end,
     c.conference_id,
     c.conference_name,
-    (SELECT COUNT(pe.participant_id) AS participants
+    (SELECT COUNT(pe.participant_id)
         FROM participant_events pe
         WHERE
             pe.event_type = 'participant joining'
             AND
-            pe.event_param = c.conference_id),
+            pe.event_param = c.conference_id)
+    AS participants,
     name_counts.name_count,
     c.conference_host
 FROM
