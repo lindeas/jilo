@@ -427,6 +427,8 @@ FROM
 WHERE
     jitsi_component = %s
 AND
+    component_id = %s
+AND
     (time >= '%s 00:00:00' AND time <= '%s 23:59:59')
 ORDER BY
     time;"
@@ -673,6 +675,10 @@ while  [[ $# -gt 0 ]]; do
             if [[ -n "$2" && "$2" != -* ]]; then
                 component_arg="$2"
                 shift 2
+                if [[ -n "$1" && "$1" != -* ]]; then
+                    component_id="$1"
+                    shift
+                fi
             else
                 shift
             fi
@@ -1005,6 +1011,9 @@ elif [[ "$component_option" == true ]]; then
             jicofo)
                 jitsi_component="'JICOFO'"
                 ;;
+            id)
+                component_id="$component_id"
+                ;;
             *)
                 # we have a component events search, but an unknown component string
                 # exiting with error, it's not a recognized option argument
@@ -1013,14 +1022,23 @@ elif [[ "$component_option" == true ]]; then
                 exit 1
                 ;;
         esac
-        header="\nJitsi components events for \"$IMPORTANT_TEXT$jitsi_component$NORMAL_TEXT\""
-
-    else
-        jitsi_component="jitsi_component"
-        header="\nJitsi components events for \"$IMPORTANT_TEXT all components$NORMAL_TEXT\""
     fi
 
-    db_jitsi_components=$(printf "$db_jitsi_components_template" "$jitsi_component" "$from_time" "$until_time")
+    if [[ -z "$jitsi_component" ]]; then
+        jitsi_component="jitsi_component"
+        header="\nJitsi components events for $IMPORTANT_TEXT""all components$NORMAL_TEXT"
+    else
+        header="\nJitsi components events for $IMPORTANT_TEXT$jitsi_component$NORMAL_TEXT"
+    fi
+
+    if [[ -z "$component_id" ]]; then
+        component_id="component_id"
+    else
+        component_id="'$component_id'"
+        header="\nJitsi events for component ID $IMPORTANT_TEXT$component_id$NORMAL_TEXT"
+    fi
+
+    db_jitsi_components=$(printf "$db_jitsi_components_template" "$jitsi_component" "$component_id" "$from_time" "$until_time")
     mapfile -t jitsi_components < <(db_query "$db_jitsi_components")
 
     output=""
