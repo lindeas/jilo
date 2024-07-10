@@ -6,7 +6,9 @@ Bash scripts for collecting and displaying information about conference events f
 
 This is the command line tools repository. For a web interface to query Jilo, go to the **"[jilo-web](https://work.lindeas.com/redirect.php?url=jilo-web)"** repository.
 
-The webpage for this project is https://lindeas.com/jilo. The main git repo is:
+The webpage for this project is https://lindeas.com/jilo. There you will find information about both Jilo and Jilo Web.
+
+The main git repo of **Jilo** is:
 - https://code.lindeas.com/lindeas/jilo
 
 It is mirrored at:
@@ -39,11 +41,8 @@ It needs access to the jilo database.
 You can install it in the following ways:
 
 - use the latest deb package from the **[APT repo](https://lindeas.com/debian)** - recommended for Debian/Ubuntu
-
 - use the latest **RPM package** - recommended for rpm-based systems
-
 - download the latest release from the **"Releases"** section here
-
 - clone the **git repo**:
 ```bash
 git clone https://github.com/lindeas/jilo.git
