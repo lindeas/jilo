@@ -58,14 +58,14 @@ SELECT DISTINCT
         WHERE
             ce.conference_id = c.conference_id
             AND
-            ce.conference_event = 'conference expired')
+            ce.conference_event = 'conference created')
     AS start,
     (SELECT ce.time
         FROM conference_events ce
         WHERE
             ce.conference_id = c.conference_id
             AND
-            ce.conference_event = 'conference created')
+            ce.conference_event = 'conference expired')
     AS end,
     c.conference_id,
     c.conference_name,
@@ -805,7 +805,7 @@ if [[ "$conference_option" == true ]]; then
             fi
             # prepare the formatted rows
             for row in "${conference_array[@]}"; do
-                IFS='|' read -r jitsi_component end start conference_id conference_name participants name_count conference_host <<< "$row"
+                IFS='|' read -r jitsi_component start end conference_id conference_name participants name_count conference_host <<< "$row"
                 calculate_duration "$start" "$end"
                 output+="$jitsi_component\t$duration\t$conference_id\t$conference_name\t$participants\t$name_count\t$conference_host\n"
             done
